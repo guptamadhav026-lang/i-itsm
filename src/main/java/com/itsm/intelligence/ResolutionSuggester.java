@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * INTELLIGENT FEATURE G - suggested resolution.
+ * Intelligent feature G: suggested resolution.
  * Looks through past incidents that already have a resolution and returns the fixes of the
  * most similar ones, so a technician can reuse what worked before (a simple knowledge base).
  */

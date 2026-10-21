@@ -53,10 +53,10 @@ class SlaMonitorServiceTest {
     @Autowired private AuditRecordRepository audit;
 
     private Incident reportCriticalPaymentIncident() {
-        User john = userService.getByUsername("john");
+        User rohan = userService.getByUsername("rohan");
         Long paymentId = services.findAll().stream()
                 .filter(s -> s.getName().equals("Payment Gateway")).findFirst().orElseThrow().getId();
-        return incidentService.create(john, new CreateIncidentRequest("Checkout completely broken",
+        return incidentService.create(rohan, new CreateIncidentRequest("Checkout completely broken",
                 "No customer can pay", paymentId, null, Impact.CRITICAL, Urgency.CRITICAL, 500));
     }
 

@@ -62,7 +62,7 @@ public class AdminController {
         this.currentUser = currentUser;
     }
 
-    // ------------------------------------------------------------------ users
+    // Users
 
     @GetMapping("/users")
     public List<UserDto> users() {
@@ -93,7 +93,7 @@ public class AdminController {
         return UserDto.from(userService.updateTechnician(id, request));
     }
 
-    // ------------------------------------------------------------------ services & categories
+    // Services & categories
 
     @GetMapping("/services")
     public List<ServiceDto> services() {
@@ -128,7 +128,7 @@ public class AdminController {
         return CategoryDto.from(catalogService.updateCategory(id, request));
     }
 
-    // ------------------------------------------------------------------ SLA policies
+    // SLA policies
 
     @GetMapping("/sla-policies")
     public List<SlaPolicyDto> slaPolicies() {
@@ -142,7 +142,7 @@ public class AdminController {
         return SlaPolicyDto.from(catalogService.updateSlaPolicy(priority, request));
     }
 
-    // ------------------------------------------------------------------ strategies
+    // Strategies
 
     @GetMapping("/strategies/assignment")
     public List<StrategyDto> assignmentStrategies() {
@@ -170,7 +170,7 @@ public class AdminController {
         return priorityStrategies();
     }
 
-    // ------------------------------------------------------------------ audit
+    // Audit
 
     @GetMapping("/audit")
     @Operation(summary = "Most recent audit records across all incidents")

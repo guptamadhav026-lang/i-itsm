@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * FACTORY: returns the state object for a status.
+ * Factory: returns the state object for a status.
  * The database stores only the status enum; this factory turns it back into behaviour.
  * State objects hold no data, so one shared instance per status is enough.
  */

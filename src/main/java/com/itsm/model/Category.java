@@ -9,7 +9,7 @@ import java.util.Locale;
 /**
  * Incident category (NETWORK, DATABASE...).
  * Categories are data, not an enum, so an administrator can add a new one at runtime
- * without changing any code - exactly what the brief asks for. The keywords drive
+ * without changing any code. The keywords drive
  * the automatic categorisation feature.
  */
 @Entity

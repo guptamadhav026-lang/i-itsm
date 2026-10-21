@@ -11,7 +11,7 @@ import java.util.Set;
  * <ol>
  *   <li>split text into lower-case words,</li>
  *   <li>drop filler words ("the", "is", "to"...),</li>
- *   <li>map words that mean the same thing onto one word ("down", "unavailable", "failing" → "failure"),</li>
+ *   <li>map words that mean the same thing onto one word ("down", "unavailable", "failing" -> "failure"),</li>
  *   <li>compare two word sets with the Jaccard similarity: |A ∩ B| / |A ∪ B| (0 = nothing shared, 1 = identical).</li>
  * </ol>
  */
@@ -81,7 +81,7 @@ public final class TextAnalyzer {
         return jaccard(keywords(textA), keywords(textB));
     }
 
-    /** Very small stemmer: "printers" → "printer", "crashing" stays mapped by SYNONYMS. */
+    /** Very small stemmer: "printers" -> "printer", "crashing" stays mapped by SYNONYMS. */
     private static String stem(String word) {
         if (word.length() > 4 && word.endsWith("ies")) {
             return word.substring(0, word.length() - 3) + "y";

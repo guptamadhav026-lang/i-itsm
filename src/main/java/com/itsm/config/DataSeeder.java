@@ -112,14 +112,14 @@ public class DataSeeder implements ApplicationRunner {
     }
 
     private void seedUsers() {
-        user(Role.ADMIN, "admin", "Asha Admin (IT Manager)", null, null, null, false, true);
-        user(Role.ADMIN, "sysadmin", "Sam Sysadmin", null, null, null, false, false);
-        user(Role.TECHNICIAN, "alice", "Alice Network", null, Set.of("NETWORK", "CLOUD"), 8, true, false);
-        user(Role.TECHNICIAN, "bob", "Bob Database", null, Set.of("DATABASE", "APPLICATION", "STORAGE"), 5, false, false);
-        user(Role.TECHNICIAN, "carol", "Carol Desktop", null, Set.of("HARDWARE", "SOFTWARE", "EMAIL"), 3, false, false);
-        user(Role.TECHNICIAN, "dave", "Dave Security", null, Set.of("AUTHENTICATION", "SECURITY", "APPLICATION"), 6, false, false);
-        user(Role.EMPLOYEE, "john", "John Employee", "Finance", null, null, false, false);
-        user(Role.EMPLOYEE, "priya", "Priya Employee", "Sales", null, null, false, false);
+        user(Role.ADMIN, "kavita", "Kavita Sharma", null, null, null, false, true);
+        user(Role.ADMIN, "suresh", "Suresh Iyer", null, null, null, false, false);
+        user(Role.TECHNICIAN, "ananya", "Ananya Rao", null, Set.of("NETWORK", "CLOUD"), 8, true, false);
+        user(Role.TECHNICIAN, "vikram", "Vikram Singh", null, Set.of("DATABASE", "APPLICATION", "STORAGE"), 5, false, false);
+        user(Role.TECHNICIAN, "sneha", "Sneha Kulkarni", null, Set.of("HARDWARE", "SOFTWARE", "EMAIL"), 3, false, false);
+        user(Role.TECHNICIAN, "arjun", "Arjun Das", null, Set.of("AUTHENTICATION", "SECURITY", "APPLICATION"), 6, false, false);
+        user(Role.EMPLOYEE, "rohan", "Rohan Mehta", "Finance", null, null, false, false);
+        user(Role.EMPLOYEE, "priya", "Priya Nair", "Sales", null, null, false, false);
     }
 
     private void user(Role role, String username, String fullName, String department, Set<String> skills,
@@ -129,13 +129,13 @@ public class DataSeeder implements ApplicationRunner {
     }
 
     private void seedIncidents() {
-        User john = userService.getByUsername("john");
+        User rohan = userService.getByUsername("rohan");
         User priya = userService.getByUsername("priya");
 
         // 1. A finished incident: reported, worked on, resolved, verified, closed, rated.
-        Incident vpn = report(john, "VPN keeps disconnecting", "My VPN connection drops every few minutes when "
+        Incident vpn = report(rohan, "VPN keeps disconnecting", "My VPN connection drops every few minutes when "
                 + "working from home.", "Corporate Network", Impact.MEDIUM, Urgency.MEDIUM, 1);
-        finish(vpn, john, "Updated the VPN client to version 5.2 and reset the network adapter.", 5);
+        finish(vpn, rohan, "Updated the VPN client to version 5.2 and reset the network adapter.", 5);
 
         // 2. Another finished one, so "suggested resolutions" has history to learn from.
         Incident timeout = report(priya, "Payment gateway timeout at checkout", "Customers see a timeout error "
@@ -143,7 +143,7 @@ public class DataSeeder implements ApplicationRunner {
         finish(timeout, priya, "Increased the payment service connection pool and restarted the gateway.", 4);
 
         // 3. A critical open incident (P1), assigned automatically.
-        report(john, "Payment application unavailable", "The payment application is down for all users, every "
+        report(rohan, "Payment application unavailable", "The payment application is down for all users, every "
                 + "transaction fails.", "Payment Gateway", Impact.CRITICAL, Urgency.CRITICAL, 300);
 
         // 4. Very similar to #3: duplicate detection will flag it.
@@ -151,7 +151,7 @@ public class DataSeeder implements ApplicationRunner {
                 "Payment Gateway", Impact.HIGH, Urgency.HIGH, 40);
 
         // 5. A low priority one the technician has acknowledged.
-        Incident battery = report(john, "Laptop battery drains quickly", "My laptop battery lasts only one hour.",
+        Incident battery = report(rohan, "Laptop battery drains quickly", "My laptop battery lasts only one hour.",
                 "Employee Laptops", Impact.LOW, Urgency.LOW, 1);
         User tech = battery.getAssignedTechnician();
         if (tech != null) {

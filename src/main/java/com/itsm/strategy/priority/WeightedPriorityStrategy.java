@@ -5,13 +5,13 @@ import com.itsm.model.Priority;
 import org.springframework.stereotype.Component;
 
 /**
- * Default algorithm, based on the formula in the brief:
+ * Default algorithm, impact times urgency times business criticality, adjusted for affected users:
  * <pre>
- *   score = impact (1-4) × urgency (1-4) × business criticality of the service (1-5)
- *           × a multiplier for the number of affected users
+ *   score = impact (1-4) x urgency (1-4) x business criticality of the service (1-5)
+ *           x a multiplier for the number of affected users
  * </pre>
- * Scores: ≥ 40 → P1, ≥ 20 → P2, ≥ 8 → P3, otherwise P4. The maximum possible score is 120.
- * Example: payment service down (impact HIGH 3, urgency CRITICAL 4, criticality 5) = 60 → P1.
+ * Scores: >= 40 -> P1, >= 20 -> P2, >= 8 -> P3, otherwise P4. The maximum possible score is 120.
+ * Example: payment service down (impact HIGH 3, urgency CRITICAL 4, criticality 5) = 60 -> P1.
  */
 @Component
 public class WeightedPriorityStrategy implements PriorityStrategy {
@@ -27,7 +27,7 @@ public class WeightedPriorityStrategy implements PriorityStrategy {
 
     @Override
     public String description() {
-        return "Impact × Urgency × Business criticality, boosted when many users are affected";
+        return "Impact x Urgency x Business criticality, boosted when many users are affected";
     }
 
     @Override
@@ -41,7 +41,7 @@ public class WeightedPriorityStrategy implements PriorityStrategy {
         Priority priority = toPriority(score);
 
         String explanation = String.format(
-                "Impact %s(%d) × Urgency %s(%d) × Criticality of %s(%d) × Users factor %.2f = %.1f → %s",
+                "Impact %s(%d) x Urgency %s(%d) x Criticality of %s(%d) x Users factor %.2f = %.1f -> %s",
                 incident.getImpact(), impact, incident.getUrgency(), urgency,
                 incident.getService().getName(), criticality, multiplier, score, priority);
         return new PriorityAssessment(priority, score, explanation);

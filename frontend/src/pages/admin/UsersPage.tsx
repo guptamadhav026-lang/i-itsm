@@ -1,11 +1,11 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Crown, Pencil, Search, UserPlus, UserRound, Wrench } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { adminApi, type CreateUserBody } from '../../api/endpoints'
 import { ApiError } from '../../api/client'
 import type { Role, User } from '../../api/types'
 import { useUser } from '../../auth/AuthContext'
-import { Badge } from '../../components/ui/Badge'
+import { Badge, type Tone } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Field, Input, Select, Toggle } from '../../components/ui/Field'
@@ -13,10 +13,10 @@ import { Modal } from '../../components/ui/Modal'
 import { Avatar, ErrorState, PageHeader, PageLoader, Tabs } from '../../components/ui/misc'
 import { useToast } from '../../components/ui/Toast'
 
-const roleBadge: Record<Role, { tone: 'sky' | 'violet' | 'brand'; label: string; icon: ReactNode }> = {
-  EMPLOYEE: { tone: 'sky', label: 'Employee', icon: <UserRound className="size-3" /> },
-  TECHNICIAN: { tone: 'violet', label: 'Technician', icon: <Wrench className="size-3" /> },
-  ADMIN: { tone: 'brand', label: 'Administrator', icon: <Crown className="size-3" /> },
+const roleBadge: Record<Role, { tone: Tone; label: string }> = {
+  EMPLOYEE: { tone: 'gray', label: 'Employee' },
+  TECHNICIAN: { tone: 'blue', label: 'Technician' },
+  ADMIN: { tone: 'brand', label: 'Administrator' },
 }
 
 type RoleFilter = 'ALL' | Role
@@ -49,9 +49,9 @@ export function UsersPage() {
   const count = (r: Role) => data.filter((u) => u.role === r).length
 
   return (
-    <div className="animate-in">
-      <PageHeader eyebrow="Administration" title="Users & technicians" subtitle="Create accounts, manage technician skills and capacity, deactivate leavers."
-        actions={<Button icon={<UserPlus className="size-4" />} onClick={() => setCreating(true)}>New user</Button>} />
+    <div>
+      <PageHeader title="Users and technicians" subtitle="Create accounts, manage technician skills and capacity, deactivate leavers."
+        actions={<Button onClick={() => setCreating(true)}>New user</Button>} />
 
       <Card>
         <div className="flex flex-col gap-3 px-4 pt-2 sm:flex-row sm:items-end sm:justify-between">
@@ -63,7 +63,7 @@ export function UsersPage() {
           ]} />
           <div className="relative pb-2 sm:w-64">
             <Search className="pointer-events-none absolute left-3 top-[calc(50%-4px)] size-4 -translate-y-1/2 text-faint" />
-            <Input aria-label="Search users" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name or email" className="h-9 pl-9" />
+            <Input aria-label="Search users" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name or email" className="pl-9" />
           </div>
         </div>
         {error ? <div className="p-5"><ErrorState error={error} onRetry={refetch} /></div> : isLoading ? <PageLoader /> : (
@@ -90,9 +90,9 @@ export function UsersPage() {
                         </span>
                       </span>
                     </td>
-                    <td className="px-4 py-3"><Badge tone={roleBadge[u.role].tone} icon={roleBadge[u.role].icon}>{roleBadge[u.role].label}</Badge></td>
+                    <td className="px-4 py-3"><Badge tone={roleBadge[u.role].tone}>{roleBadge[u.role].label}</Badge></td>
                     <td className="px-4 py-3 text-xs text-muted">
-                      {u.role === 'EMPLOYEE' && (u.department ?? '—')}
+                      {u.role === 'EMPLOYEE' && (u.department ?? '-')}
                       {u.role === 'ADMIN' && (u.itManager ? 'IT manager (top of escalation chain)' : 'System administrator')}
                       {u.role === 'TECHNICIAN' && (
                         <span className="flex flex-wrap items-center gap-1.5">
@@ -108,7 +108,7 @@ export function UsersPage() {
                         onChange={(v) => setActive.mutate({ id: u.id, active: v })} />
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {u.role === 'TECHNICIAN' && <Button size="sm" variant="ghost" icon={<Pencil className="size-3.5" />} onClick={() => setEditing(u)}>Edit</Button>}
+                      {u.role === 'TECHNICIAN' && <Button size="sm" variant="ghost" onClick={() => setEditing(u)}>Edit</Button>}
                     </td>
                   </tr>
                 ))}
@@ -183,7 +183,7 @@ function CreateUserModal({ open, onClose, onCreated }: { open: boolean; onClose:
         {form.role === 'ADMIN' && (
           <label className="flex items-center gap-3 text-sm text-fg sm:col-span-2"><Toggle checked={!!form.itManager} onChange={(v) => set('itManager', v)} label="IT manager" /> IT manager (receives top-level escalations)</label>
         )}
-        {errors._ && <p className="sm:col-span-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/50 dark:text-red-300">{errors._}</p>}
+        {errors._ && <p className="sm:col-span-2 rounded bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/50 dark:text-red-300">{errors._}</p>}
       </div>
     </Modal>
   )

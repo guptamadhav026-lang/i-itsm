@@ -1,6 +1,6 @@
 package com.itsm.model;
 
-/** Escalation chain from the brief: Technician → Team Lead → System Administrator → IT Manager. */
+/** Escalation chain: technician, then team lead, then system administrator, then IT manager. */
 public enum EscalationLevel {
     NONE, TEAM_LEAD, SYSTEM_ADMINISTRATOR, IT_MANAGER;
 

@@ -20,8 +20,8 @@ import java.time.Instant;
  * <ul>
  *   <li>records response and resolution SLA violations,</li>
  *   <li>sends one "SLA approaching" warning when the warning threshold is passed,</li>
- *   <li>INTELLIGENT FEATURE C - automatic escalation: a P1/P2 incident nobody has acknowledged is
- *       escalated Team Lead → System Administrator → IT Manager, one level per missed response window.</li>
+ *   <li>Intelligent feature C, automatic escalation: a P1/P2 incident nobody has acknowledged is
+ *       escalated Team Lead -> System Administrator -> IT Manager, one level per missed response window.</li>
  * </ul>
  */
 @Service

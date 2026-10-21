@@ -4,7 +4,7 @@ import com.itsm.model.NotificationChannelType;
 import com.itsm.model.User;
 
 /**
- * One way of delivering a message (in-app, e-mail, ...). INTERFACE + POLYMORPHISM:
+ * One way of delivering a message (in-app, e-mail, ...). Interface and polymorphism:
  * NotificationService calls deliver() without knowing which kind of channel it is.
  * To add SMS or push notifications, write one more class implementing this interface.
  */

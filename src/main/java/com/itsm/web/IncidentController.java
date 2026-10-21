@@ -65,7 +65,7 @@ public class IncidentController {
         this.currentUser = currentUser;
     }
 
-    // ------------------------------------------------------------------ report & view
+    // Report & view
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -113,7 +113,7 @@ public class IncidentController {
         return auditService.forIncident(id, user(auth)).stream().map(AuditRecordDto::from).toList();
     }
 
-    // ------------------------------------------------------------------ assignment (admin)
+    // Assignment (admin)
 
     @PostMapping("/{id}/assign")
     @PreAuthorize("hasRole('ADMIN')")
@@ -137,7 +137,7 @@ public class IncidentController {
         return incidentService.recommendTechnicians(id);
     }
 
-    // ------------------------------------------------------------------ technician work
+    // Technician work
 
     @PostMapping("/{id}/acknowledge")
     @PreAuthorize("hasAnyRole('TECHNICIAN','ADMIN')")
@@ -184,7 +184,7 @@ public class IncidentController {
                 request.affectedUsers()));
     }
 
-    // ------------------------------------------------------------------ reporter actions
+    // Reporter actions
 
     @PostMapping("/{id}/info-response")
     @Operation(summary = "Reporter answers an information request")
@@ -225,7 +225,7 @@ public class IncidentController {
         return views.detail(incidentService.giveFeedback(id, user(auth), request.rating(), request.comment()));
     }
 
-    // ------------------------------------------------------------------ intelligent features
+    // Intelligent features
 
     @GetMapping("/{id}/similar")
     @Operation(summary = "Open incidents that look like the same problem")

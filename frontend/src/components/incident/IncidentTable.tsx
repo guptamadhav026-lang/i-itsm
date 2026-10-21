@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
-import { ArrowDown, ArrowUp, ChevronsUpDown, Inbox } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react'
 import type { IncidentSummary } from '../../api/types'
 import { cn } from '../../lib/cn'
 import { timeAgo } from '../../lib/format'
@@ -46,7 +46,7 @@ export function IncidentTable({ incidents, hide = [], emptyTitle = 'No incidents
   )
 
   if (incidents.length === 0) {
-    return <EmptyState icon={<Inbox className="size-5" />} title={emptyTitle} message={emptyMessage} />
+    return <EmptyState title={emptyTitle} message={emptyMessage} />
   }
 
   const header = (key: SortKey, label: string, className?: string) => (

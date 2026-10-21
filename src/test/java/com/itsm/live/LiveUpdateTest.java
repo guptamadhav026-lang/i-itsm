@@ -53,6 +53,6 @@ class LiveUpdateTest {
         assertThat(hub.filter.test(subscriber("emp101", Role.EMPLOYEE))).isTrue();
         assertThat(hub.filter.test(subscriber("emp999", Role.EMPLOYEE))).isFalse();
         assertThat(hub.filter.test(subscriber("tech10", Role.TECHNICIAN))).isTrue();
-        assertThat(hub.filter.test(subscriber("admin", Role.ADMIN))).isTrue();
+        assertThat(hub.filter.test(subscriber("kavita", Role.ADMIN))).isTrue();
     }
 }

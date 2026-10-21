@@ -64,7 +64,7 @@ class IncidentApiTest {
     @DisplayName("TC24 Wrong password gives 401, no token gives 401")
     void authentication() throws Exception {
         mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"john\",\"password\":\"wrong-password\"}"))
+                        .content("{\"username\":\"rohan\",\"password\":\"wrong-password\"}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message", is("Invalid username or password")));
         mvc.perform(get("/api/incidents")).andExpect(status().isUnauthorized());
@@ -73,70 +73,70 @@ class IncidentApiTest {
     @Test
     @DisplayName("TC25 Role-based access: employees and technicians cannot use admin endpoints")
     void roleBasedAccess() throws Exception {
-        mvc.perform(get("/api/admin/users").header("Authorization", login("john")))
+        mvc.perform(get("/api/admin/users").header("Authorization", login("rohan")))
                 .andExpect(status().isForbidden());
-        mvc.perform(get("/api/reports/overview").header("Authorization", login("alice")))
+        mvc.perform(get("/api/reports/overview").header("Authorization", login("ananya")))
                 .andExpect(status().isForbidden());
-        mvc.perform(get("/api/admin/users").header("Authorization", login("admin")))
+        mvc.perform(get("/api/admin/users").header("Authorization", login("kavita")))
                 .andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("TC26 Full workflow: report → auto-classify/prioritise/assign → work → resolve → verify → close")
+    @DisplayName("TC26 Full workflow: report -> auto-classify/prioritise/assign -> work -> resolve -> verify -> close")
     void fullWorkflow() throws Exception {
-        String john = login("john");
-        long network = serviceId(john, "Corporate Network");
+        String rohan = login("rohan");
+        long network = serviceId(rohan, "Corporate Network");
 
-        String created = postJson("/api/incidents", john, """
+        String created = postJson("/api/incidents", rohan, """
                 {"title":"Office wifi not working","description":"The wifi on floor 3 keeps dropping",
                  "serviceId":%d,"impact":"MEDIUM","urgency":"HIGH","affectedUsers":25}""".formatted(network))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status", is("ASSIGNED")))
                 .andExpect(jsonPath("$.category.name", is("NETWORK")))          // auto-categorised
                 .andExpect(jsonPath("$.priority", is("P2")))                    // 2*3*4*1.25 = 30
-                .andExpect(jsonPath("$.assignedTechnician.username", is("alice"))) // network skills
+                .andExpect(jsonPath("$.assignedTechnician.username", is("ananya"))) // network skills
                 .andExpect(jsonPath("$.responseDeadline", notNullValue()))
                 .andReturn().getResponse().getContentAsString();
         int id = JsonPath.read(created, "$.id");
 
-        String alice = login("alice");
-        postJson("/api/incidents/" + id + "/acknowledge", alice, "").andExpect(status().isOk())
+        String ananya = login("ananya");
+        postJson("/api/incidents/" + id + "/acknowledge", ananya, "").andExpect(status().isOk())
                 .andExpect(jsonPath("$.status", is("ACKNOWLEDGED")));
-        postJson("/api/incidents/" + id + "/start", alice, "").andExpect(jsonPath("$.status", is("IN_PROGRESS")));
-        postJson("/api/incidents/" + id + "/info-request", alice, "{\"text\":\"Which access point?\"}")
+        postJson("/api/incidents/" + id + "/start", ananya, "").andExpect(jsonPath("$.status", is("IN_PROGRESS")));
+        postJson("/api/incidents/" + id + "/info-request", ananya, "{\"text\":\"Which access point?\"}")
                 .andExpect(jsonPath("$.awaitingReporterInfo", is(true)));
-        postJson("/api/incidents/" + id + "/info-response", john, "{\"text\":\"AP-3B near the lifts\"}")
+        postJson("/api/incidents/" + id + "/info-response", rohan, "{\"text\":\"AP-3B near the lifts\"}")
                 .andExpect(jsonPath("$.awaitingReporterInfo", is(false)));
-        postJson("/api/incidents/" + id + "/resolve", alice, "{\"resolution\":\"Replaced faulty access point\"}")
+        postJson("/api/incidents/" + id + "/resolve", ananya, "{\"resolution\":\"Replaced faulty access point\"}")
                 .andExpect(jsonPath("$.status", is("RESOLVED")));
-        postJson("/api/incidents/" + id + "/verify", john, "").andExpect(jsonPath("$.status", is("VERIFIED")));
-        postJson("/api/incidents/" + id + "/close", john, "").andExpect(jsonPath("$.status", is("CLOSED")));
-        postJson("/api/incidents/" + id + "/feedback", john, "{\"rating\":5,\"comment\":\"Quick fix\"}")
+        postJson("/api/incidents/" + id + "/verify", rohan, "").andExpect(jsonPath("$.status", is("VERIFIED")));
+        postJson("/api/incidents/" + id + "/close", rohan, "").andExpect(jsonPath("$.status", is("CLOSED")));
+        postJson("/api/incidents/" + id + "/feedback", rohan, "{\"rating\":5,\"comment\":\"Quick fix\"}")
                 .andExpect(jsonPath("$.feedbackRating", is(5)));
 
-        mvc.perform(get("/api/incidents/" + id + "/audit").header("Authorization", john))
+        mvc.perform(get("/api/incidents/" + id + "/audit").header("Authorization", rohan))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[*].action", hasItem("CREATED")))
                 .andExpect(jsonPath("$[*].action", hasItem("CLOSED")));
-        mvc.perform(get("/api/notifications").header("Authorization", alice))
-                .andExpect(jsonPath("$[*].subject", hasItem("INC%04d assigned to Alice Network".formatted(id))));
+        mvc.perform(get("/api/notifications").header("Authorization", ananya))
+                .andExpect(jsonPath("$[*].subject", hasItem("INC%04d assigned to Ananya Rao".formatted(id))));
     }
 
     @Test
     @DisplayName("TC27 Illegal actions are rejected: wrong technician 403, skipped state 409")
     void illegalActions() throws Exception {
-        String john = login("john");
-        long laptops = serviceId(john, "Employee Laptops");
-        String created = postJson("/api/incidents", john, """
+        String rohan = login("rohan");
+        long laptops = serviceId(rohan, "Employee Laptops");
+        String created = postJson("/api/incidents", rohan, """
                 {"title":"Laptop keyboard broken","description":"Several keys do not work",
                  "serviceId":%d,"impact":"LOW","urgency":"MEDIUM","affectedUsers":1}""".formatted(laptops))
-                .andExpect(jsonPath("$.assignedTechnician.username", is("carol")))
+                .andExpect(jsonPath("$.assignedTechnician.username", is("sneha")))
                 .andReturn().getResponse().getContentAsString();
         int id = JsonPath.read(created, "$.id");
 
-        postJson("/api/incidents/" + id + "/acknowledge", login("bob"), "")
+        postJson("/api/incidents/" + id + "/acknowledge", login("vikram"), "")
                 .andExpect(status().isForbidden());                      // not the assigned technician
-        postJson("/api/incidents/" + id + "/resolve", login("carol"), "{\"resolution\":\"done\"}")
+        postJson("/api/incidents/" + id + "/resolve", login("sneha"), "{\"resolution\":\"done\"}")
                 .andExpect(status().isConflict())                        // must acknowledge first
                 .andExpect(jsonPath("$.message", notNullValue()));
         mvc.perform(get("/api/incidents/" + id).header("Authorization", login("priya")))
@@ -146,12 +146,12 @@ class IncidentApiTest {
     @Test
     @DisplayName("TC28 Invalid input gives 400 with the field that is wrong")
     void validation() throws Exception {
-        postJson("/api/incidents", login("john"), """
+        postJson("/api/incidents", login("rohan"), """
                 {"title":"","description":"x","serviceId":1,"impact":"HIGH","urgency":"HIGH","affectedUsers":0}""")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.title", notNullValue()))
                 .andExpect(jsonPath("$.fieldErrors.affectedUsers", notNullValue()));
-        postJson("/api/incidents", login("john"), """
+        postJson("/api/incidents", login("rohan"), """
                 {"title":"Valid title","description":"x","serviceId":1,"impact":"ENORMOUS","urgency":"HIGH","affectedUsers":1}""")
                 .andExpect(status().isBadRequest());
     }
@@ -159,14 +159,14 @@ class IncidentApiTest {
     @Test
     @DisplayName("TC29 Search by criteria; employees only ever see their own incidents")
     void search() throws Exception {
-        String admin = login("admin");
+        String admin = login("kavita");
         mvc.perform(get("/api/incidents/search").param("priority", "P1").param("keyword", "payment")
                         .header("Authorization", admin))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[*].priority", everyItem(is("P1"))))
                 .andExpect(jsonPath("$[*].title", hasItem("Payment application unavailable")));
-        mvc.perform(get("/api/incidents/search").param("status", "CLOSED").header("Authorization", login("john")))
-                .andExpect(jsonPath("$[*].reporter.username", everyItem(is("john"))))
+        mvc.perform(get("/api/incidents/search").param("status", "CLOSED").header("Authorization", login("rohan")))
+                .andExpect(jsonPath("$[*].reporter.username", everyItem(is("rohan"))))
                 .andExpect(jsonPath("$[*].reporter.username", not(hasItem("priya"))));
         mvc.perform(get("/api/incidents/search").param("reference", "INC0003").header("Authorization", admin))
                 .andExpect(jsonPath("$[0].reference", is("INC0003")));
@@ -175,7 +175,7 @@ class IncidentApiTest {
     @Test
     @DisplayName("TC30 Admin can switch strategy at runtime and add a category without code changes")
     void adminConfiguration() throws Exception {
-        String admin = login("admin");
+        String admin = login("kavita");
         mvc.perform(put("/api/admin/strategies/assignment").header("Authorization", admin)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"load_based\"}"))
                 .andExpect(status().isOk())
@@ -194,12 +194,12 @@ class IncidentApiTest {
     @Test
     @DisplayName("TC31 Reports: overview, workload, SLA risk and correlations")
     void reports() throws Exception {
-        String admin = login("admin");
+        String admin = login("kavita");
         mvc.perform(get("/api/reports/overview").header("Authorization", admin))
                 .andExpect(jsonPath("$.totalIncidents", is(6)))
                 .andExpect(jsonPath("$.criticalOpenIncidents", is(2)));
         mvc.perform(get("/api/reports/technician-workload").header("Authorization", admin))
-                .andExpect(jsonPath("$[*].username", hasItem("alice")));
+                .andExpect(jsonPath("$[*].username", hasItem("ananya")));
         mvc.perform(get("/api/reports/correlations").header("Authorization", admin))
                 .andExpect(jsonPath("$[0].serviceName", is("Payment Gateway")));
         mvc.perform(get("/api/reports/sla-risk").header("Authorization", admin)).andExpect(status().isOk());
@@ -209,9 +209,34 @@ class IncidentApiTest {
     @DisplayName("TC33 The live-update stream needs a login and then stays open as text/event-stream")
     void liveStream() throws Exception {
         mvc.perform(get("/api/live")).andExpect(status().isUnauthorized());
-        mvc.perform(get("/api/live").header("Authorization", login("alice")))
+        mvc.perform(get("/api/live").header("Authorization", login("ananya")))
                 .andExpect(status().isOk())
                 .andExpect(request().asyncStarted())
                 .andExpect(header().string("Content-Type", org.hamcrest.Matchers.startsWith("text/event-stream")));
+    }
+
+    @Test
+    @DisplayName("TC34 Reporting the same open problem twice is refused (409); another person may report it")
+    void repeatedReport() throws Exception {
+        String rohan = login("rohan");
+        long network = serviceId(rohan, "Corporate Network");
+        String report = """
+                {"title":"%s","description":"The wifi on floor 3 keeps dropping",
+                 "serviceId":%d,"impact":"MEDIUM","urgency":"HIGH","affectedUsers":25}""";
+
+        String first = postJson("/api/incidents", rohan, report.formatted("Office wifi not working", network))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String reference = JsonPath.read(first, "$.reference");
+
+        // Same person, same service, same title (different spacing and case): rejected.
+        postJson("/api/incidents", rohan, report.formatted("office  WIFI not working ", network))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message", org.hamcrest.Matchers.containsString(reference)));
+
+        // A colleague with the same problem is allowed; duplicate detection only links the two.
+        postJson("/api/incidents", login("priya"), report.formatted("Office wifi not working", network))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.potentialDuplicateOf", is(reference)));
     }
 }

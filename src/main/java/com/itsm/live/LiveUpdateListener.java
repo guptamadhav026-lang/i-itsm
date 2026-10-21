@@ -9,7 +9,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * OBSERVER PATTERN, third listener: pushes every incident event to the browsers that may see it.
+ * Observer pattern, third listener: pushes every incident event to the browsers that may see it.
  * It was added without changing IncidentService or the other listeners - the benefit of the pattern.
  *
  * The push happens only AFTER the database transaction commits, so a browser that reloads

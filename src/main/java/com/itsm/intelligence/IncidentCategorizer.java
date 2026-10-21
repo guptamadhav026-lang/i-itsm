@@ -10,10 +10,10 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * INTELLIGENT FEATURE F - automatic categorisation.
+ * Intelligent feature F: automatic categorisation.
  * Each category stores keywords (configurable by the admin). The category whose keywords
  * appear most often in the incident's title and description is suggested.
- * "My VPN keeps disconnecting" → NETWORK because "vpn" is a NETWORK keyword.
+ * "My VPN keeps disconnecting" -> NETWORK because "vpn" is a NETWORK keyword.
  */
 @Component
 public class IncidentCategorizer {

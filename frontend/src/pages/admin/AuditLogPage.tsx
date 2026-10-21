@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowRight, BookOpen, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { adminApi } from '../../api/endpoints'
 import type { EventType } from '../../api/types'
 import { Card } from '../../components/ui/Card'
@@ -24,8 +24,8 @@ export function AuditLogPage() {
     (!text || `${r.incidentReference} ${r.actor} ${r.description}`.toLowerCase().includes(text.toLowerCase()))), [data, text, action])
 
   return (
-    <div className="animate-in">
-      <PageHeader eyebrow="Administration" title="Audit log" subtitle="Who did what, when, and how it changed the incident. Newest first." />
+    <div>
+      <PageHeader title="Audit log" subtitle="Who did what, when, and how it changed the incident. Newest first." />
       <Card>
         <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row">
           <div className="relative flex-1">
@@ -38,7 +38,7 @@ export function AuditLogPage() {
           </Select>
         </div>
         {error ? <div className="p-5"><ErrorState error={error} onRetry={refetch} /></div> : isLoading ? <PageLoader />
-          : shown.length === 0 ? <EmptyState icon={<BookOpen className="size-5" />} title="No matching records" /> : (
+          : shown.length === 0 ? <EmptyState title="No matching records" /> : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-surface-2/50 text-xs text-muted">
@@ -63,8 +63,8 @@ export function AuditLogPage() {
                       </td>
                       <td className="whitespace-nowrap px-4 py-2.5 text-xs text-muted">
                         {r.previousStatus && r.newStatus && r.previousStatus !== r.newStatus
-                          ? <span className="inline-flex items-center gap-1">{STATUS_LABEL[r.previousStatus]} <ArrowRight className="size-3" /> {STATUS_LABEL[r.newStatus]}</span>
-                          : '—'}
+                          ? <span>{STATUS_LABEL[r.previousStatus]} to {STATUS_LABEL[r.newStatus]}</span>
+                          : '-'}
                       </td>
                       <td className="px-4 py-2.5 text-xs text-fg">{r.actor}</td>
                       <td className="px-4 py-2.5 text-xs text-muted">{r.description}</td>

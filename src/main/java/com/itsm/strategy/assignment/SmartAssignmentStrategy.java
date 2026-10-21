@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * INTELLIGENT FEATURE "Smart technician recommendation".
+ * Intelligent feature D: smart technician recommendation.
  * Gives every candidate a score out of 100 from four factors:
  * <ul>
  *   <li>Skill match with the incident category ........ 40 points</li>

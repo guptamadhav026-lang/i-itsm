@@ -9,10 +9,10 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * INTELLIGENT FEATURE A - duplicate incident detection.
+ * Intelligent feature A: duplicate incident detection.
  * Compares a new incident with other open incidents:
  * <pre>
- *   score = 0.6 × similarity of titles + 0.4 × similarity of title+description + 0.15 if same IT service
+ *   score = 0.6 x similarity of titles + 0.4 x similarity of title+description + 0.15 if same IT service
  * </pre>
  * Anything scoring at least {@value #THRESHOLD} is reported as a possible duplicate.
  * "Payment application unavailable", "Payment transaction failing" and "Unable to make payment"

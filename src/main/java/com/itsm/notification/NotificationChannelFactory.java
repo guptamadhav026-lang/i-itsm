@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * FACTORY PATTERN: hands out the right NotificationChannel for a channel type.
+ * Factory pattern: hands out the right NotificationChannel for a channel type.
  * Callers never create channels themselves, so new channels plug in here only.
  */
 @Component

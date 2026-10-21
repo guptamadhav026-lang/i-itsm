@@ -1,16 +1,15 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { BarChart3, Table2 } from 'lucide-react'
 import { Card, CardHeader } from '../ui/Card'
 import { cn } from '../../lib/cn'
 
 /**
- * Chart colours. Validated for colour-blind separation and contrast on our light and dark surfaces
- * (series 1 = blue, series 2 = aqua). Severity uses a separate fixed status palette.
+ * Chart colours: series 1 teal, series 2 ochre. Checked for colour-blind separation and for
+ * contrast against the light and dark card background. Priorities use their own fixed colours.
  */
 const CHART = {
-  light: { series1: '#2a78d6', series2: '#1baf7a', grid: '#e9ebf1', axis: '#8a93a5', ink: '#141824', cursor: 'rgba(67,56,202,0.06)' },
-  dark: { series1: '#3987e5', series2: '#199e70', grid: '#232838', axis: '#6c7589', ink: '#e8ebf3', cursor: 'rgba(124,131,255,0.08)' },
+  light: { series1: '#008ba3', series2: '#c4701a', grid: '#e6e6e1', axis: '#868e96', ink: '#1d2125', cursor: 'rgba(15,94,102,0.06)' },
+  dark: { series1: '#1aa0ad', series2: '#c9761d', grid: '#2d3236', axis: '#737b82', ink: '#e4e6e8', cursor: 'rgba(91,180,186,0.08)' },
 }
 export const SEVERITY = { critical: '#d03b3b', serious: '#ec835a', warning: '#fab219', neutral: '#94a3b8' }
 
@@ -28,10 +27,9 @@ export function useChartColors() {
 export interface TableColumn { key: string; label: string; align?: 'right' }
 
 /** A card holding one chart, with a switch to see the same numbers as a table (accessibility). */
-export function ChartCard({ title, subtitle, icon, legend, children, rows, columns, className }: {
+export function ChartCard({ title, subtitle, legend, children, rows, columns, className }: {
   title: string
   subtitle?: string
-  icon?: ReactNode
   legend?: ReactNode
   children: ReactNode
   rows: Record<string, ReactNode>[]
@@ -44,14 +42,13 @@ export function ChartCard({ title, subtitle, icon, legend, children, rows, colum
       <CardHeader
         title={title}
         subtitle={subtitle}
-        icon={icon}
         action={
           <button
             onClick={() => setAsTable((t) => !t)}
-            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-surface-2 hover:text-fg cursor-pointer"
+            className="rounded border border-line px-2 py-0.5 text-xs text-muted hover:bg-surface-2 hover:text-fg cursor-pointer"
             aria-pressed={asTable}
           >
-            {asTable ? <><BarChart3 className="size-3.5" /> Chart</> : <><Table2 className="size-3.5" /> Table</>}
+            {asTable ? 'Show chart' : 'Show table'}
           </button>
         }
       />
@@ -83,7 +80,7 @@ function ChartTooltip({ active, payload, label, unit }: {
 }) {
   if (!active || !payload?.length) return null
   return (
-    <div className="rounded-lg border border-line bg-surface px-3 py-2 text-xs shadow-lg">
+    <div className="rounded border border-line-strong bg-surface px-3 py-2 text-xs">
       <p className="mb-1 font-medium text-fg">{label}</p>
       {payload.map((p) => (
         <p key={p.name} className="flex items-center gap-2 text-muted">
@@ -117,10 +114,13 @@ export function HorizontalBars({ data, valueName, secondName, unit = 'incidents'
           stroke="var(--surface)" strokeWidth={secondName ? 2 : 0}>
           {!secondName && data.map((d) => <Cell key={d.name} fill={d.color ?? c.series1} />)}
           {!secondName && <LabelList dataKey="value" position="right" fill={c.ink} fontSize={12} />}
+          {/* When the second part is 0 its bar has no width, so the total is written after the first part */}
+          {secondName && <LabelList valueAccessor={(entry: { payload?: BarDatum }) => (entry.payload && !entry.payload.second ? entry.payload.value : '')}
+            position="right" fill={c.ink} fontSize={12} />}
         </Bar>
         {secondName && (
           <Bar dataKey="second" name={secondName} stackId="a" fill={c.series2} radius={[0, 4, 4, 0]} maxBarSize={22} stroke="var(--surface)" strokeWidth={2}>
-            <LabelList valueAccessor={(entry: { payload?: BarDatum }) => (entry.payload ? entry.payload.value + (entry.payload.second ?? 0) : '')} position="right" fill={c.ink} fontSize={12} />
+            <LabelList valueAccessor={(entry: { payload?: BarDatum }) => (entry.payload?.second ? entry.payload.value + entry.payload.second : '')} position="right" fill={c.ink} fontSize={12} />
           </Bar>
         )}
       </BarChart>

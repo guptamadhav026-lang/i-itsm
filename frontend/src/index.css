@@ -8,42 +8,36 @@
  * so light and dark mode are switched in this one place.
  */
 :root {
-  --bg: #f4f5f9;
+  --bg: #f4f4f2;
   --surface: #ffffff;
-  --surface-2: #f6f7fb;
-  --line: #e3e6ee;
-  --line-strong: #cfd4df;
-  --fg: #141824;
-  --muted: #5b6475;
-  --faint: #8a93a5;
-  --brand: #4338ca;
-  --brand-hover: #3730a3;
-  --brand-soft: #eef0ff;
+  --surface-2: #f0f0ed;
+  --line: #dcdcd6;
+  --line-strong: #c4c4bc;
+  --fg: #1d2125;
+  --muted: #555d65;
+  --faint: #868e96;
+  --brand: #0f5e66;
+  --brand-hover: #0b4a51;
+  --brand-soft: #e3eeef;
   --brand-fg: #ffffff;
-  --ring: #6366f1;
-  --sidebar: #11142b;
-  --sidebar-fg: #c7cbe0;
-  --sidebar-active: #262b55;
+  --ring: #2b8792;
   color-scheme: light;
 }
 
 .dark {
-  --bg: #0b0d14;
-  --surface: #12151f;
-  --surface-2: #181c28;
-  --line: #242a39;
-  --line-strong: #323a4d;
-  --fg: #e8ebf3;
-  --muted: #9aa3b6;
-  --faint: #6c7589;
-  --brand: #7c83ff;
-  --brand-hover: #969cff;
-  --brand-soft: #1d2142;
-  --brand-fg: #0b0d14;
-  --ring: #818cf8;
-  --sidebar: #0a0c13;
-  --sidebar-fg: #a3a9c0;
-  --sidebar-active: #1c2140;
+  --bg: #131516;
+  --surface: #1a1d1f;
+  --surface-2: #212528;
+  --line: #2d3236;
+  --line-strong: #3c4247;
+  --fg: #e4e6e8;
+  --muted: #a1a8ae;
+  --faint: #737b82;
+  --brand: #5bb4ba;
+  --brand-hover: #7cc5ca;
+  --brand-soft: #16302f;
+  --brand-fg: #0e1112;
+  --ring: #5bb4ba;
   color-scheme: dark;
 }
 
@@ -61,11 +55,8 @@
   --color-brand-soft: var(--brand-soft);
   --color-brand-fg: var(--brand-fg);
   --color-ring: var(--ring);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-fg: var(--sidebar-fg);
-  --color-sidebar-active: var(--sidebar-active);
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+  --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", Consolas, ui-monospace, monospace;
 }
 
 html,
@@ -79,7 +70,6 @@ body {
   color: var(--fg);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
-  font-feature-settings: "cv11", "ss01";
 }
 
 /* Tabular numbers for timers and counters so digits don't jump around */
@@ -95,25 +85,4 @@ body {
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
-}
-
-@keyframes fade-in-up {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.animate-in {
-  animation: fade-in-up 0.25s ease-out both;
-}
-
-@keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgb(239 68 68 / 0.45); }
-  70% { box-shadow: 0 0 0 8px rgb(239 68 68 / 0); }
-  100% { box-shadow: 0 0 0 0 rgb(239 68 68 / 0); }
-}
-.pulse-danger {
-  animation: pulse-ring 1.8s infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .animate-in, .pulse-danger { animation: none; }
 }

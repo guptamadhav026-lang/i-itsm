@@ -35,7 +35,7 @@ public class ItilMatrixPriorityStrategy implements PriorityStrategy {
         } else {
             priority = Priority.P4;
         }
-        String explanation = String.format("ITIL matrix: impact %s + urgency %s = %d → %s",
+        String explanation = String.format("ITIL matrix: impact %s + urgency %s = %d -> %s",
                 incident.getImpact(), incident.getUrgency(), sum, priority);
         return new PriorityAssessment(priority, sum, explanation);
     }

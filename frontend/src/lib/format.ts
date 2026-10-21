@@ -77,20 +77,20 @@ const dateOnly = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'sh
 const timeOnly = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' })
 
 export function formatDateTime(iso: string | null | undefined): string {
-  return iso ? dateTime.format(new Date(iso)) : '—'
+  return iso ? dateTime.format(new Date(iso)) : '-'
 }
 
 export function formatDate(iso: string | null | undefined): string {
-  return iso ? dateOnly.format(new Date(iso)) : '—'
+  return iso ? dateOnly.format(new Date(iso)) : '-'
 }
 
 export function formatTime(iso: string | null | undefined): string {
-  return iso ? timeOnly.format(new Date(iso)) : '—'
+  return iso ? timeOnly.format(new Date(iso)) : '-'
 }
 
 /** "3 min ago", "2 h ago", "yesterday"... */
 export function timeAgo(iso: string | null | undefined, now: number = Date.now()): string {
-  if (!iso) return '—'
+  if (!iso) return '-'
   const seconds = Math.round((now - new Date(iso).getTime()) / 1000)
   if (seconds < 45) return 'just now'
   const minutes = Math.round(seconds / 60)

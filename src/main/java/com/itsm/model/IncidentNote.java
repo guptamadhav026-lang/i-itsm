@@ -6,7 +6,7 @@ import java.time.Instant;
 
 /**
  * A note attached to an incident (investigation notes, info requests, replies).
- * COMPOSITION: a note belongs to exactly one incident and is deleted with it.
+ * Composition: a note belongs to exactly one incident and is deleted with it.
  */
 @Entity
 @Table(name = "incident_note")

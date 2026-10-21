@@ -1,6 +1,6 @@
 package com.itsm.model;
 
-/** The three user categories required by the brief. */
+/** The three kinds of user. Each one gets its own screens and permissions. */
 public enum Role {
     EMPLOYEE, TECHNICIAN, ADMIN
 }

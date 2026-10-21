@@ -5,7 +5,7 @@ import com.itsm.model.IncidentStatus;
 import java.util.EnumSet;
 import java.util.Set;
 
-/** A technician has been assigned but has not responded yet. Re-assignment (ASSIGNED → ASSIGNED) is allowed, e.g. on escalation. */
+/** A technician has been assigned but has not responded yet. Re-assignment (ASSIGNED -> ASSIGNED) is allowed, e.g. on escalation. */
 public class AssignedState implements IncidentState {
 
     @Override

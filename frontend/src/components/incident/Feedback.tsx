@@ -32,7 +32,7 @@ export function FeedbackForm({ onSubmit, loading }: { onSubmit: (rating: number,
   return (
     <div className="space-y-3">
       <Stars value={rating} onChange={setRating} />
-      <Textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Anything to add? (optional)" rows={2} className="min-h-0" />
+      <Textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Anything to add? (optional)" rows={2} />
       <Button size="sm" disabled={rating === 0} loading={loading} onClick={() => onSubmit(rating, comment)}>Send feedback</Button>
     </div>
   )

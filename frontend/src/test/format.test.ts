@@ -21,11 +21,11 @@ describe('format helpers', () => {
     expect(timeAgo('2026-10-21T11:57:00Z', now)).toBe('3 min ago')
     expect(timeAgo('2026-10-21T09:00:00Z', now)).toBe('3 h ago')
     expect(timeAgo('2026-10-20T12:00:00Z', now)).toBe('yesterday')
-    expect(timeAgo(null, now)).toBe('—')
+    expect(timeAgo(null, now)).toBe('-')
   })
 
   it('builds initials and readable enum names', () => {
-    expect(initials('Alice Kumar')).toBe('AK')
+    expect(initials('Ananya Rao')).toBe('AR')
     expect(initials('System Administrator (admin)')).toBe('SA')
     expect(humanize('LEAST_LOADED')).toBe('Least loaded')
   })

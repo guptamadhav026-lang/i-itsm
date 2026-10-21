@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 import java.util.Set;
 
 /**
- * FACTORY PATTERN: builds the right User subclass for a role.
+ * Factory pattern: builds the right User subclass for a role.
  * The rest of the code asks for "a user with role X" and never calls the constructors directly,
  * so adding a new role later means changing only this class.
  */

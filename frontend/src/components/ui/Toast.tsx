@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle, Bell, CheckCircle2, Info, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { cn } from '../../lib/cn'
 
 type ToastKind = 'success' | 'error' | 'info' | 'warning' | 'live'
@@ -22,12 +22,13 @@ interface ToastApi {
 const ToastContext = createContext<ToastApi | null>(null)
 let nextId = 1
 
-const icons: Record<ToastKind, ReactNode> = {
-  success: <CheckCircle2 className="size-5 text-emerald-500" />,
-  error: <AlertTriangle className="size-5 text-red-500" />,
-  warning: <AlertTriangle className="size-5 text-amber-500" />,
-  info: <Info className="size-5 text-sky-500" />,
-  live: <Bell className="size-5 text-brand" />,
+// Coloured left edge per kind; the title says what happened.
+const edge: Record<ToastKind, string> = {
+  success: 'border-l-emerald-600',
+  error: 'border-l-red-600',
+  warning: 'border-l-amber-500',
+  info: 'border-l-slate-400',
+  live: 'border-l-brand',
 }
 
 /** Small pop-up messages in the corner ("Incident resolved", "Assigned to you"...). */
@@ -58,11 +59,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               key={t.id}
               onClick={() => { t.onClick?.(); dismiss(t.id) }}
               className={cn(
-                'animate-in pointer-events-auto flex items-start gap-3 rounded-xl border border-line bg-surface p-3.5 shadow-lg',
+                'pointer-events-auto flex items-start gap-3 rounded border border-line-strong border-l-4 bg-surface px-3 py-2.5 shadow-md',
+                edge[t.kind],
                 t.onClick && 'cursor-pointer hover:border-line-strong',
               )}
             >
-              <span className="mt-0.5 shrink-0">{icons[t.kind]}</span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-fg">{t.title}</p>
                 {t.message && <p className="mt-0.5 text-xs text-muted line-clamp-2">{t.message}</p>}

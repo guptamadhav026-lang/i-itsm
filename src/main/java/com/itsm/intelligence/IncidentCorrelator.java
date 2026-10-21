@@ -12,7 +12,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * INTELLIGENT FEATURE B - incident correlation.
+ * Intelligent feature B: incident correlation.
  * When several open incidents hit the same IT service in a short time, they most likely
  * have one underlying cause (a "major incident"). This groups them so they can be handled together.
  */

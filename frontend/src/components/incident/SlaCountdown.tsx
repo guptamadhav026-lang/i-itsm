@@ -51,7 +51,7 @@ export function SlaCountdown({ start, deadline, stoppedAt, label, breached, warn
 /** Compact "12:04 left" text for tables. */
 export function SlaTimeLeft({ deadline, done }: { deadline: string | null; done: boolean }) {
   const now = useNow(1000)
-  if (!deadline || done) return <span className="text-faint">—</span>
+  if (!deadline || done) return <span className="text-faint">-</span>
   const left = new Date(deadline).getTime() - now
   return (
     <span className={cn('tabular font-mono text-xs', left < 0 ? 'text-red-600 dark:text-red-400 font-medium' : left < 15 * 60_000 ? 'text-amber-600 dark:text-amber-400' : 'text-muted')}>

@@ -10,7 +10,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * GENERICS: one registry class works for any kind of strategy (assignment, priority, ...).
+ * Generics: one registry class works for any kind of strategy (assignment, priority, ...).
  * It keeps every available implementation and remembers which one is active, so an
  * administrator can switch algorithms at runtime without changing or restarting the code.
  *

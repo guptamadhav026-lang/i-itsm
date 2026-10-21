@@ -1,134 +1,116 @@
-# I-ITSM: Intelligent IT Service Management & Incident Resolution System
+# I-ITSM: IT Service Management and Incident Resolution
 
-CS F213 Object-Oriented Programming course project (Semester I, 2026-27).
+Course project for CS F213 Object-Oriented Programming, Semester I 2026-27.
 
-An employee reports an IT problem. The system classifies it, calculates its priority, applies the SLA,
-picks the best technician, notifies everyone, tracks the deadlines, escalates when nobody responds and
-keeps a full audit trail until the incident is closed.
+Employees report IT problems through a web page. Each incident is classified, given a priority (P1 to P4)
+and SLA deadlines, assigned to a technician, and tracked through its lifecycle until it is closed:
 
-**Report → Classify → Prioritize → Assign → Investigate → Resolve → Verify → Close**
+New, Classified, Assigned, Acknowledged, In progress, Resolved, Verified, Closed.
 
-* **Backend:** Java 21, Spring Boot 4, JPA, H2/PostgreSQL, JWT security, live updates (Server-Sent Events).
-  Walkthrough: [docs/GUIDE.md](docs/GUIDE.md).
-* **Frontend:** React 19 + TypeScript (Vite, React Query, Tailwind, Recharts), one dashboard per role,
-  light and dark mode, works on phones. Walkthrough: [docs/FRONTEND_GUIDE.md](docs/FRONTEND_GUIDE.md).
+Illegal moves (for example closing an incident that was never resolved) are rejected by the State pattern
+in `model/state`.
 
 ![Admin dashboard](docs/screenshots/30-admin-dashboard.png)
 
----
+## Features
 
-## Run it
+- Three roles with their own screens: employee, technician, administrator. Login with JWT tokens, passwords stored with BCrypt.
+- Priority from impact, urgency, business criticality of the service and number of affected users. Two priority strategies (weighted score, ITIL matrix) that the admin can switch at runtime.
+- Four assignment strategies: smart (skills, experience, past work on the service, workload), skill based, load based, round robin.
+- SLA response and resolution deadlines per priority, a warning before the deadline, breach detection, and escalation of unacknowledged P1/P2 incidents (team lead, then system administrator, then IT manager).
+- Notifications in the app and by e-mail (e-mail is simulated: it is written to the log and shown on the Notifications page).
+- Full audit log of every change, search with 10 filters, management reports and CSV export.
+- Duplicate detection, correlation of related incidents (possible major incident), automatic categorisation, SLA risk score, suggested resolutions from past incidents.
+- Live updates: open pages refresh on their own when something changes (Server-Sent Events).
 
-You only need a JDK (Java 21 or newer). Maven and Node.js do not need to be installed:
-`mvnw` downloads Maven, and the `ui` profile downloads its own Node.js into `frontend/node/`.
+## Technology
 
-**The whole app (website + API) with one command**
+| Part | Used |
+|---|---|
+| Backend | Java 21, Spring Boot 4 (Web, Data JPA, Security, Validation), JWT |
+| Database | H2 (file in `data/`, default) or PostgreSQL (`postgres` profile) |
+| Frontend | React 19 with TypeScript, Vite, TanStack Query, React Router, Tailwind CSS, Recharts |
+| Tests | JUnit 5, Spring MockMvc, AssertJ; Vitest and Testing Library for the frontend |
+
+## Running it
+
+Only a JDK (21 or newer) is needed. The Maven wrapper downloads Maven, and the `ui` profile downloads
+its own copy of Node.js into `frontend/node/`.
+
 ```bash
 # Windows
 mvnw.cmd -Pui spring-boot:run
 # macOS / Linux
 ./mvnw -Pui spring-boot:run
 ```
-Wait for `Started ItsmApplication`, then open **http://localhost:8080** and click one of the demo accounts.
-The first run takes a few minutes (it downloads Node.js and the JavaScript libraries); later runs are quicker.
 
-**Only the backend (from VS Code)**
-1. Open the `i-itsm` folder.
-2. Open `src/main/java/com/itsm/ItsmApplication.java`.
-3. Click **Run** above the `main` method.
-4. Wait for `Started ItsmApplication`, then open **http://localhost:8080/swagger-ui.html**.
+When the log shows `Started ItsmApplication`, open http://localhost:8080. The first run takes a few minutes.
 
-**Frontend developer mode** (needs Node.js 20+): start the backend, then
-```bash
-cd frontend
-npm install
-npm run dev          # http://localhost:5173, refreshes instantly when you save a file
-```
-
-The first start creates a small database in the `data/` folder and fills it with demo data.
-Delete the `data/` folder to start again from scratch.
-
-**A single file to hand in or deploy:** `mvnw.cmd -Pui package` creates `target/i-itsm-0.1.0.jar`;
-run it anywhere with `java -jar target/i-itsm-0.1.0.jar`.
+- The first start creates the database in `data/` and loads demo data. Delete `data/` to start over
+  (do this before recording a demo, otherwise old incidents show as SLA breached).
+- API documentation: http://localhost:8080/swagger-ui.html
+- Backend only: run `src/main/java/com/itsm/ItsmApplication.java` from the IDE.
+- Frontend development server: `cd frontend`, `npm install`, `npm run dev` (port 5173, needs Node.js 20+).
+- One runnable file: `mvnw.cmd -Pui package`, then `java -jar target/i-itsm-0.1.0.jar`.
+- PostgreSQL: create a database `itsm`, then `mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=postgres`
+  (settings in `application-postgres.properties`, or `ITSM_DB_URL`, `ITSM_DB_USER`, `ITSM_DB_PASSWORD`).
 
 ## Demo accounts
 
-Every account uses the password **`password123`**.
+All demo accounts use the password `password123`.
 
-| Username | Role | Notes |
+| Username | Name | Role |
 |---|---|---|
-| `admin` | Administrator | IT Manager (top of the escalation chain) |
-| `sysadmin` | Administrator | System administrator |
-| `alice` | Technician | NETWORK, CLOUD · team lead · 8 years |
-| `bob` | Technician | DATABASE, APPLICATION, STORAGE · 5 years |
-| `carol` | Technician | HARDWARE, SOFTWARE, EMAIL · 3 years |
-| `dave` | Technician | AUTHENTICATION, SECURITY, APPLICATION · 6 years |
-| `john` | Employee | Finance |
-| `priya` | Employee | Sales |
+| `rohan` | Rohan Mehta | Employee, Finance |
+| `priya` | Priya Nair | Employee, Sales |
+| `ananya` | Ananya Rao | Technician: network, cloud. Team lead, 8 years |
+| `vikram` | Vikram Singh | Technician: database, application, storage. 5 years |
+| `sneha` | Sneha Kulkarni | Technician: hardware, software, e-mail. 3 years |
+| `arjun` | Arjun Das | Technician: authentication, security, application. 6 years |
+| `kavita` | Kavita Sharma | Administrator, IT manager (last escalation level) |
+| `suresh` | Suresh Iyer | Administrator, system administrator |
 
-## Try the API in Swagger
-
-1. Open `POST /api/auth/login` → **Try it out** → body `{"username":"john","password":"password123"}` → **Execute**.
-2. Copy the `token` value from the response.
-3. Click **Authorize** (top right), paste the token, click **Authorize**.
-4. Now try `GET /api/incidents`, `POST /api/incidents`, and the rest.
-
-Log in as `admin` to see reports (`/api/reports/...`) and administration (`/api/admin/...`).
-
-## Run the tests
+## Tests
 
 ```bash
-mvnw.cmd test        # Windows: 33 backend tests
-./mvnw test          # macOS / Linux
-cd frontend && npm test   # 19 frontend tests (needs Node.js)
+mvnw.cmd test             # 36 backend tests
+cd frontend && npm test   # 19 frontend tests
 ```
 
-Each test is described in [docs/TEST_CASES.md](docs/TEST_CASES.md), together with the three demo workflows
-that were run end to end in a real browser.
+The test cases are listed in [docs/TEST_CASES.md](docs/TEST_CASES.md), along with three workflows that were
+also checked by hand in a browser.
 
-## Use PostgreSQL instead of H2
-
-H2 needs no installation and is the default. To use PostgreSQL, create a database called `itsm` and start with:
-```bash
-mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=postgres
-```
-Connection settings are in `src/main/resources/application-postgres.properties`
-(or set `ITSM_DB_URL`, `ITSM_DB_USER`, `ITSM_DB_PASSWORD`).
-
-## Screens
-
-| | |
-|---|---|
-| ![Login](docs/screenshots/01-login.png) Login with demo accounts | ![Report form](docs/screenshots/03-report-form.png) Report form with live category, priority and SLA preview |
-| ![Reported](docs/screenshots/04-reported-summary.png) What the system did automatically | ![Technician](docs/screenshots/11-technician-dashboard-live.png) Technician queue (updated live) |
-| ![Question](docs/screenshots/21-employee-question-live.png) Technician asks, employee answers | ![Smart assist](docs/screenshots/23-smart-assist.png) Smart assist: fixes from similar incidents |
-| ![Recommend](docs/screenshots/36-admin-recommend.png) Ranked technician recommendation | ![Reports](docs/screenshots/37-reports.png) Management reports |
-| ![Strategies](docs/screenshots/31-admin-strategies.png) Switch strategies at runtime | ![Dark mode](docs/screenshots/45-admin-dashboard-dark.png) Dark mode |
-
-## Project layout
+## Code layout
 
 ```
 src/main/java/com/itsm
-├── model/          Domain classes: User hierarchy, Incident, enums, SLA policy...
-│   └── state/      State pattern: one class per incident status
-├── strategy/       Strategy pattern: priority and technician assignment
-├── event/          Observer pattern: incident events, audit + notification listeners
-├── live/           Third observer: pushes changes to open browsers (Server-Sent Events)
-├── notification/   Notification channels (in-app, email) + factory
-├── intelligence/   Duplicate detection, correlation, categorisation, SLA risk, suggestions
-├── service/        Business logic (incident workflow, SLA monitor, search, reports...)
-├── repository/     Repository pattern: database access (Spring Data JPA)
-├── security/       JWT token creation, current user lookup
-├── config/         Security, clock, Swagger, demo data, serving the React app
-├── exception/      Custom exception hierarchy
-└── web/            REST controllers and DTOs (the API the frontend calls)
+  model/          User hierarchy, Incident, enums, SLA policy
+  model/state/    State pattern, one class per incident status
+  strategy/       Strategy pattern for priority and technician assignment
+  event/          Observer pattern: incident events with audit and notification listeners
+  live/           Third listener, pushes changes to open browsers
+  notification/   Notification channels (in-app, e-mail) and their factory
+  intelligence/   Duplicate detection, correlation, categorisation, SLA risk, suggestions
+  service/        Incident workflow, SLA monitor, search, reports, users, catalogue
+  repository/     Spring Data JPA repositories
+  security/       JWT handling and the current user
+  config/         Security, clock, Swagger, demo data, serving the React app
+  exception/      Custom exceptions
+  web/            REST controllers and DTOs
 
 frontend/src
-├── api/            TypeScript copies of the DTOs + one function per REST endpoint
-├── auth/           Login state
-├── live/           Listens for live updates
-├── layout/         Sidebar, top bar, notification bell, dark mode
-├── components/     Reusable pieces: badges, tables, SLA countdowns, charts, dialogs...
-├── pages/          One file per screen (dashboards, report form, incident page, admin pages)
-└── test/           Frontend unit tests
+  api/            Types and one function per REST endpoint
+  auth/           Login state
+  layout/         Side menu, top bar, notification bell
+  components/     Badges, incident table, SLA timers, charts, dialogs
+  pages/          One file per screen
+  test/           Frontend unit tests
 ```
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Login](docs/screenshots/01-login.png) Login | ![Report form](docs/screenshots/03-report-form.png) Reporting an incident |
+| ![Technician](docs/screenshots/11-technician-dashboard-live.png) Technician queue | ![Incident](docs/screenshots/21-employee-question-live.png) Technician asks the reporter a question |
+| ![Recommend](docs/screenshots/36-admin-recommend.png) Ranked technicians for manual assignment | ![Reports](docs/screenshots/37-reports.png) Reports |

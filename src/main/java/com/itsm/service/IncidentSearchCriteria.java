@@ -7,7 +7,7 @@ import com.itsm.model.SlaState;
 import java.time.LocalDate;
 
 /**
- * All the ways incidents can be searched (the brief asks for at least five). Every field is optional.
+ * All the ways incidents can be searched. Every field is optional.
  *
  * @param reference "INC0007" or just "7"
  * @param keyword   searched in title and description

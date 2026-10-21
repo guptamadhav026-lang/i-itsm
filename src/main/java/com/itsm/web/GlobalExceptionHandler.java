@@ -1,10 +1,12 @@
 package com.itsm.web;
 
+import com.itsm.exception.DatabaseFailureException;
 import com.itsm.exception.ItsmException;
 import com.itsm.web.dto.ApiError;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -69,6 +71,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiError> handleIntegrity(DataIntegrityViolationException ex, HttpServletRequest request) {
         return build(HttpStatus.CONFLICT, "This would create duplicate or inconsistent data", request, null);
+    }
+
+    /** Any other database problem (the more specific ones above are handled first). */
+    @ExceptionHandler(DataAccessException.class)
+    public ResponseEntity<ApiError> handleDatabase(DataAccessException ex, HttpServletRequest request) {
+        log.error("Database error on {} {}", request.getMethod(), request.getRequestURI(), ex);
+        return handleItsm(new DatabaseFailureException("The database is not available right now, please try again", ex),
+                request);
     }
 
     @ExceptionHandler(Exception.class)

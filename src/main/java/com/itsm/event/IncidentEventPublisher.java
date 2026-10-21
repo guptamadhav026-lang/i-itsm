@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * OBSERVER PATTERN - the "subject". Spring hands it every IncidentEventListener bean,
+ * Observer pattern, the "subject" side. Spring hands it every IncidentEventListener bean,
  * and {@link #publish} informs all of them. One failing listener (say, the e-mail
  * channel) must not stop the others, so each call is protected separately.
  */

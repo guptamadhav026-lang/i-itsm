@@ -34,7 +34,7 @@ public class CatalogService {
         this.slaPolicies = slaPolicies;
     }
 
-    // ---------------------------------------------------------------- IT services
+    // IT services
 
     @Transactional(readOnly = true)
     public List<ItService> activeServices() {
@@ -65,7 +65,7 @@ public class CatalogService {
         return service;
     }
 
-    // ---------------------------------------------------------------- categories
+    // Categories
 
     @Transactional(readOnly = true)
     public List<Category> activeCategories() {
@@ -96,7 +96,7 @@ public class CatalogService {
         return category;
     }
 
-    // ---------------------------------------------------------------- SLA policies
+    // SLA policies
 
     @Transactional(readOnly = true)
     public List<SlaPolicy> slaPolicies() {

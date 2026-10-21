@@ -1,5 +1,5 @@
 // These TypeScript types mirror the Java DTO records in com.itsm.web.dto,
-// so the editor can check that we use the API correctly (like Java's type checking).
+// so the compiler catches mismatches between the frontend and the API.
 
 export type Role = 'EMPLOYEE' | 'TECHNICIAN' | 'ADMIN'
 export type Priority = 'P1' | 'P2' | 'P3' | 'P4'

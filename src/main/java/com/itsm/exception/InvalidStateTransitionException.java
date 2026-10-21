@@ -3,7 +3,7 @@ package com.itsm.exception;
 import com.itsm.model.IncidentStatus;
 import org.springframework.http.HttpStatus;
 
-/** Thrown when an incident is asked to move to a status that is not allowed from its current status (e.g. NEW → CLOSED). */
+/** Thrown when an incident is asked to move to a status that is not allowed from its current status (e.g. NEW -> CLOSED). */
 public class InvalidStateTransitionException extends ItsmException {
 
     private final IncidentStatus from;

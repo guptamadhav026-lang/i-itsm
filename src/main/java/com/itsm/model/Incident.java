@@ -14,12 +14,12 @@ import java.util.List;
 /**
  * The heart of the system: one reported IT problem.
  *
- * ENCAPSULATION: there are no public setters for status or timestamps. The only way to move
+ * Encapsulation: there are no public setters for status or timestamps. The only way to move
  * an incident through its lifecycle is through methods like {@link #acknowledge(Instant)},
  * and every one of them asks the current {@link IncidentState} whether the move is legal.
  *
- * ASSOCIATIONS: an incident refers to its reporter, its service, its category and its technician
- * (they exist on their own). COMPOSITION: it owns its notes (they are deleted with it).
+ * Associations: an incident refers to its reporter, its service, its category and its technician
+ * (they exist on their own). Composition: it owns its notes (they are deleted with it).
  */
 @Entity
 @Table(name = "incident")
@@ -133,7 +133,7 @@ public class Incident {
         this.createdAt = createdAt;
     }
 
-    // ------------------------------------------------------------------ lifecycle
+    // Lifecycle
 
     /** The State object for the current status (see the State pattern classes). */
     public IncidentState currentState() {
@@ -199,7 +199,7 @@ public class Incident {
         this.closedAt = now;
     }
 
-    // ------------------------------------------------------------------ other behaviour
+    // Other behaviour
 
     public IncidentNote addNote(User author, NoteType type, String text, Instant now) {
         if (!currentState().acceptsNotes()) {
@@ -263,7 +263,7 @@ public class Incident {
     public void markResponseBreached() { this.responseBreached = true; }
     public void markResolutionBreached() { this.resolutionBreached = true; }
 
-    // ------------------------------------------------------------------ queries
+    // Queries
 
     /** Human-friendly reference like INC0007. */
     public String getReference() {
@@ -282,7 +282,7 @@ public class Incident {
         return reporter != null && reporter.isSameUser(user);
     }
 
-    // ------------------------------------------------------------------ getters
+    // Getters
 
     public Long getId() { return id; }
     public String getTitle() { return title; }

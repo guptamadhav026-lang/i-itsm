@@ -5,7 +5,7 @@ import jakarta.persistence.*;
 import java.time.Instant;
 
 /**
- * ABSTRACTION + INHERITANCE.
+ * Abstract base class for the three kinds of user (Employee, Technician, Administrator).
  * Every person in the system is a User, but there is no such thing as a "plain" user:
  * you are always an Employee, a Technician or an Administrator (a real "is-a" relationship).
  * All three are stored in one table (SINGLE_TABLE) with a "user_type" column telling them apart.
@@ -48,10 +48,10 @@ public abstract class User {
         this.email = email;
     }
 
-    /** Each subclass says which role it has - POLYMORPHISM. */
+    /** Each subclass says which role it has (polymorphism). */
     public abstract Role getRole();
 
-    /** Each role has its own rule for which incidents it may see - POLYMORPHISM. */
+    /** Each role has its own rule for which incidents it may see (polymorphism). */
     public abstract boolean canView(Incident incident);
 
     public boolean isSameUser(User other) {

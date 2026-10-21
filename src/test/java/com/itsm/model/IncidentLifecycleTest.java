@@ -17,7 +17,7 @@ class IncidentLifecycleTest {
     private final Technician tech = TestData.technician(10, 5, "NETWORK");
 
     @Test
-    @DisplayName("TC01 An incident goes through the whole lifecycle NEW → CLOSED")
+    @DisplayName("TC01 An incident goes through the whole lifecycle NEW -> CLOSED")
     void fullLifecycle() {
         Incident incident = TestData.incident(1, "VPN down");
         assertThat(incident.getStatus()).isEqualTo(IncidentStatus.NEW);
@@ -36,7 +36,7 @@ class IncidentLifecycleTest {
     }
 
     @Test
-    @DisplayName("TC02 Skipping a step (NEW → RESOLVED) is rejected")
+    @DisplayName("TC02 Skipping a step (NEW -> RESOLVED) is rejected")
     void cannotSkipStates() {
         Incident incident = TestData.incident(1, "VPN down");
         assertThatThrownBy(() -> incident.resolve("fixed", TestData.NOW))

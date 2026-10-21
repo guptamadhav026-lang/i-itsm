@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Bell, Mail, MonitorSmartphone } from 'lucide-react'
+import { Bell } from 'lucide-react'
 import { notificationApi } from '../api/endpoints'
 import { cn } from '../lib/cn'
 import { timeAgo } from '../lib/format'
@@ -61,17 +61,17 @@ export function NotificationBell() {
       <button
         onClick={() => setOpen((o) => !o)}
         aria-label={`Notifications (${unread.length} unread)`}
-        className="relative rounded-lg p-2 text-muted hover:bg-surface-2 hover:text-fg cursor-pointer"
+        className="relative rounded p-2 text-muted hover:bg-surface-2 hover:text-fg cursor-pointer"
       >
-        <Bell className="size-5" />
+        <Bell className="size-4.5" />
         {unread.length > 0 && (
-          <span className="tabular absolute -right-0.5 -top-0.5 flex min-w-4.5 h-4.5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white ring-2 ring-surface">
+          <span className="tabular absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold text-white">
             {unread.length > 99 ? '99+' : unread.length}
           </span>
         )}
       </button>
       {open && (
-        <div className="animate-in absolute right-0 z-40 mt-2 w-[min(380px,calc(100vw-2rem))] overflow-hidden rounded-xl border border-line bg-surface shadow-xl">
+        <div className="absolute right-0 z-40 mt-2 w-[min(380px,calc(100vw-2rem))] overflow-hidden rounded-md border border-line bg-surface shadow-md">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <p className="text-sm font-semibold text-fg">Notifications</p>
             <span className="text-xs text-muted">{unread.length} unread</span>
@@ -85,7 +85,7 @@ export function NotificationBell() {
                     setOpen(false)
                     if (n.incidentId) navigate(`/incidents/${n.incidentId}`)
                   }}
-                  className={cn('flex w-full gap-3 px-4 py-3 text-left hover:bg-surface-2 cursor-pointer', !n.read && 'bg-brand-soft/40')}
+                  className={cn('flex w-full gap-3 px-4 py-2.5 text-left hover:bg-surface-2 cursor-pointer', !n.read && 'bg-brand-soft/40')}
                 >
                   <span className={cn('mt-1.5 size-2 shrink-0 rounded-full', n.read ? 'bg-transparent' : 'bg-brand')} />
                   <span className="min-w-0">
@@ -96,13 +96,13 @@ export function NotificationBell() {
                 </button>
               </li>
             ))}
-            {inApp.length === 0 && <li className="px-4 py-8 text-center text-sm text-muted">Nothing yet</li>}
+            {inApp.length === 0 && <li className="px-4 py-8 text-center text-sm text-muted">No notifications</li>}
           </ul>
           <button
             onClick={() => { setOpen(false); navigate('/notifications') }}
-            className="flex w-full items-center justify-center gap-2 border-t border-line px-4 py-2.5 text-sm font-medium text-brand hover:bg-surface-2 cursor-pointer"
+            className="block w-full border-t border-line px-4 py-2 text-center text-sm font-medium text-brand hover:bg-surface-2 cursor-pointer"
           >
-            <MonitorSmartphone className="size-4" /> All notifications <Mail className="size-4" />
+            All notifications
           </button>
         </div>
       )}

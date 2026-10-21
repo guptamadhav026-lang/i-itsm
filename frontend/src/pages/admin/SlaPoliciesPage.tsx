@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Save, Timer } from 'lucide-react'
 import { adminApi } from '../../api/endpoints'
 import type { SlaPolicy } from '../../api/types'
 import { Button } from '../../components/ui/Button'
@@ -15,18 +14,18 @@ import { formatMinutes } from '../../lib/format'
 export function SlaPoliciesPage() {
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ['admin', 'sla'], queryFn: adminApi.slaPolicies })
   return (
-    <div className="animate-in">
-      <PageHeader eyebrow="Administration" title="SLA policies"
+    <div>
+      <PageHeader title="SLA policies"
         subtitle="How fast each priority must be acknowledged and resolved, and when to warn before the deadline." />
       {error ? <ErrorState error={error} onRetry={refetch} /> : isLoading ? <PageLoader /> : (
         <div className="grid gap-4 md:grid-cols-2">
           {data?.map((p) => <PolicyCard key={p.priority} policy={p} />)}
         </div>
       )}
-      <p className="mt-6 flex items-start gap-2 text-sm text-muted">
-        <Timer className="mt-0.5 size-4 shrink-0" />
-        The SLA monitor checks every open incident each minute: it sends a warning at the threshold, records a breach after the deadline,
-        and escalates unacknowledged P1/P2 incidents to the team lead, then the system administrator, then the IT manager.
+      <p className="mt-5 max-w-3xl text-sm text-muted">
+        The SLA monitor checks every open incident once a minute. It sends a warning at the threshold, records a breach after
+        the deadline, and escalates P1 and P2 incidents nobody has acknowledged: first to the team lead, then the system
+        administrator, then the IT manager.
       </p>
     </div>
   )
@@ -48,7 +47,7 @@ function PolicyCard({ policy }: { policy: SlaPolicy }) {
     <Card className="p-5">
       <div className="flex items-center justify-between">
         <PriorityBadge priority={policy.priority} />
-        <Button size="sm" disabled={!dirty} loading={save.isPending} icon={<Save className="size-3.5" />} onClick={() => save.mutate()}>Save</Button>
+        <Button size="sm" disabled={!dirty} loading={save.isPending} onClick={() => save.mutate()}>Save</Button>
       </div>
       <div className="mt-4 grid grid-cols-3 gap-3">
         <NumberField label="Respond within" suffix="min" value={response} onChange={setResponse} hint={formatMinutes(response)} />

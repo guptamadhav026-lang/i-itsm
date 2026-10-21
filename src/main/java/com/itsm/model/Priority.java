@@ -1,7 +1,7 @@
 package com.itsm.model;
 
 /**
- * Incident priority levels from the project brief (P1 = most urgent).
+ * Incident priority levels, P1 is the most urgent.
  * The default SLA targets here are only used to seed the database;
  * the real targets are configurable by an administrator through {@link SlaPolicy}.
  */

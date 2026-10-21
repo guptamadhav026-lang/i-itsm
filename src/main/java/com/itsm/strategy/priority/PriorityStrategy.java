@@ -4,7 +4,7 @@ import com.itsm.model.Incident;
 import com.itsm.strategy.NamedStrategy;
 
 /**
- * STRATEGY PATTERN: different algorithms for working out an incident's priority.
+ * Strategy pattern: different algorithms for working out an incident's priority.
  * IncidentService only talks to this interface, so the algorithm can be swapped freely.
  */
 public interface PriorityStrategy extends NamedStrategy {

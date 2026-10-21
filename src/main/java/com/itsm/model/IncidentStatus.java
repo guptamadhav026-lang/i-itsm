@@ -2,7 +2,7 @@ package com.itsm.model;
 
 /**
  * The stages of the incident lifecycle:
- * NEW → CLASSIFIED → ASSIGNED → ACKNOWLEDGED → IN_PROGRESS → RESOLVED → VERIFIED → CLOSED.
+ * NEW -> CLASSIFIED -> ASSIGNED -> ACKNOWLEDGED -> IN_PROGRESS -> RESOLVED -> VERIFIED -> CLOSED.
  * Which moves are allowed is decided by the State classes in {@code com.itsm.model.state}.
  */
 public enum IncidentStatus {

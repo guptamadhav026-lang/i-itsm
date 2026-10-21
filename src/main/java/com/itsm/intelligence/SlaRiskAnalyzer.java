@@ -12,15 +12,15 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * INTELLIGENT FEATURE E - SLA risk detection.
+ * Intelligent feature E: SLA risk detection.
  * Predicts which open incidents are likely to violate their SLA before it happens:
  * <pre>
- *   risk = 70 × (share of resolution time used, max 1)
+ *   risk = 70 x (share of resolution time used, max 1)
  *        + 30 if the response deadline was already missed, otherwise
  *          + 15 if nobody has acknowledged it yet
  *        + 15 if it is still waiting for information from the reporter
  * </pre>
- * Incidents with risk ≥ {@value #RISK_THRESHOLD} (or already AT_RISK/BREACHED) are listed, riskiest first.
+ * Incidents with risk >= {@value #RISK_THRESHOLD} (or already AT_RISK/BREACHED) are listed, riskiest first.
  */
 @Component
 public class SlaRiskAnalyzer {

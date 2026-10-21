@@ -6,7 +6,7 @@ import com.itsm.model.IncidentStatus;
 import java.util.Set;
 
 /**
- * STATE PATTERN.
+ * State pattern.
  * Each lifecycle stage of an incident is its own class implementing this interface.
  * The state object - not a big switch statement inside Incident - decides which
  * moves are legal and what is allowed while the incident is in that stage.

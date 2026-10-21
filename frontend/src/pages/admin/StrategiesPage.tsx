@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, Circle, Scale, Shuffle } from 'lucide-react'
 import { adminApi } from '../../api/endpoints'
 import type { Strategy } from '../../api/types'
 import { Card, CardHeader } from '../../components/ui/Card'
@@ -28,20 +27,20 @@ export function StrategiesPage() {
   })
 
   return (
-    <div className="animate-in">
-      <PageHeader eyebrow="Administration" title="Strategies"
+    <div>
+      <PageHeader title="Strategies"
         subtitle="Choose the algorithms the system uses. New incidents use the new choice immediately." />
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-5 lg:grid-cols-2">
         <Card>
-          <CardHeader title="Technician assignment" subtitle="Who gets a new incident" icon={<Shuffle className="size-4" />} />
-          <div className="space-y-2 px-5 pb-5">
+          <CardHeader title="Technician assignment" subtitle="Who gets a new incident" />
+          <div className="space-y-2 px-4 pb-4">
             {assignment.error ? <ErrorState error={assignment.error} /> : assignment.isLoading ? <PageLoader />
               : assignment.data?.map((s) => <Option key={s.name} strategy={s} busy={setAssignment.isPending} onSelect={() => setAssignment.mutate(s.name)} />)}
           </div>
         </Card>
         <Card>
-          <CardHeader title="Priority calculation" subtitle="How P1–P4 is decided" icon={<Scale className="size-4" />} />
-          <div className="space-y-2 px-5 pb-5">
+          <CardHeader title="Priority calculation" subtitle="How P1 to P4 is decided" />
+          <div className="space-y-2 px-4 pb-4">
             {priority.error ? <ErrorState error={priority.error} /> : priority.isLoading ? <PageLoader />
               : priority.data?.map((s) => <Option key={s.name} strategy={s} busy={setPriority.isPending} onSelect={() => setPriority.mutate(s.name)} />)}
           </div>
@@ -58,11 +57,13 @@ function Option({ strategy, onSelect, busy }: { strategy: Strategy; onSelect: ()
       disabled={busy || strategy.active}
       aria-pressed={strategy.active}
       className={cn(
-        'flex w-full items-start gap-3 rounded-xl border p-4 text-left transition cursor-pointer disabled:cursor-default',
-        strategy.active ? 'border-brand bg-brand-soft/50 ring-1 ring-brand/30' : 'border-line hover:border-line-strong hover:bg-surface-2',
+        'flex w-full items-start gap-3 rounded border p-3 text-left cursor-pointer disabled:cursor-default',
+        strategy.active ? 'border-brand bg-brand-soft' : 'border-line hover:bg-surface-2',
       )}
     >
-      {strategy.active ? <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-brand" /> : <Circle className="mt-0.5 size-5 shrink-0 text-faint" />}
+      <span className={cn('mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border', strategy.active ? 'border-brand' : 'border-line-strong')}>
+        {strategy.active && <span className="size-2 rounded-full bg-brand" />}
+      </span>
       <span>
         <span className="flex items-center gap-2 text-sm font-semibold text-fg">
           {humanize(strategy.name)}

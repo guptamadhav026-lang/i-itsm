@@ -3,6 +3,7 @@ package com.itsm.service;
 import com.itsm.event.IncidentEvent;
 import com.itsm.event.IncidentEventPublisher;
 import com.itsm.event.IncidentEventType;
+import com.itsm.exception.DuplicateIncidentException;
 import com.itsm.exception.InvalidInputException;
 import com.itsm.exception.ResourceNotFoundException;
 import com.itsm.exception.TechnicianUnavailableException;
@@ -46,13 +47,14 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 /**
- * The incident workflow from the brief:
- * Report → Classify → Prioritize → Assign → Investigate → Resolve → Verify → Close.
+ * The incident workflow:
+ * Report -> Classify -> Prioritize -> Assign -> Investigate -> Resolve -> Verify -> Close.
  *
- * This class coordinates the other pieces (it holds them by COMPOSITION): strategies decide priority
+ * This class coordinates the other pieces (it holds them by composition): strategies decide priority
  * and assignment, the SLA service sets deadlines, the intelligence classes detect duplicates and
  * suggest categories, and every step is announced through the event publisher (Observer) so the
  * audit trail and notifications happen automatically.
@@ -100,12 +102,13 @@ public class IncidentService {
         this.duplicateWindow = Duration.ofHours(duplicateWindowHours);
     }
 
-    // =================================================================== REPORT (steps 1-9 of the brief)
+    // Reporting a new incident (classify, prioritise, start the SLA, assign, notify)
 
     public Incident create(User reporter, CreateIncidentRequest request) {
         ItService service = services.findById(request.serviceId())
                 .filter(ItService::isActive)
                 .orElseThrow(() -> new ResourceNotFoundException("IT service " + request.serviceId() + " not found"));
+        rejectRepeatedReport(reporter, service, request.title());
 
         // 1. Create
         Incident incident = incidents.save(new Incident(request.title(), request.description(), reporter, service,
@@ -131,6 +134,23 @@ public class IncidentService {
         // 7-9. Pick a technician and assign (notifications follow automatically from the event)
         tryAutoAssign(incident, IncidentEvent.SYSTEM);
         return incident;
+    }
+
+    /** The same person reporting the same title on the same service while it is still open is a double submit. */
+    private void rejectRepeatedReport(User reporter, ItService service, String title) {
+        String key = normalizeTitle(title);
+        incidents.findByReporterOrderByCreatedAtDesc(reporter).stream()
+                .filter(Incident::isUnresolved)
+                .filter(existing -> existing.getService().getId().equals(service.getId()))
+                .filter(existing -> normalizeTitle(existing.getTitle()).equals(key))
+                .findFirst()
+                .ifPresent(existing -> {
+                    throw new DuplicateIncidentException(existing.getReference());
+                });
+    }
+
+    private static String normalizeTitle(String title) {
+        return title == null ? "" : title.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
     }
 
     private void classify(Incident incident, Long categoryId) {
@@ -194,7 +214,7 @@ public class IncidentService {
                 .toList();
     }
 
-    // =================================================================== VIEW
+    // Reading incidents
 
     @Transactional(readOnly = true)
     public Incident getVisible(Long id, User user) {
@@ -216,7 +236,7 @@ public class IncidentService {
         };
     }
 
-    // =================================================================== ASSIGN
+    // Assignment
 
     public Incident assign(Long id, Long technicianId, User admin) {
         Incident incident = find(id);
@@ -247,7 +267,7 @@ public class IncidentService {
         return incident;
     }
 
-    // =================================================================== TECHNICIAN WORK
+    // Technician actions
 
     public Incident acknowledge(Long id, User user) {
         Incident incident = find(id);
@@ -313,13 +333,13 @@ public class IncidentService {
         if (assessment.priority() != oldPriority) {
             slaService.applyDeadlines(incident);
             publish(IncidentEventType.PRIORITY_CHANGED, incident, user.getUsername(), incident.getStatus(),
-                    "Priority changed " + oldPriority + " → " + assessment.priority() + " - "
+                    "Priority changed " + oldPriority + " -> " + assessment.priority() + " - "
                             + assessment.explanation());
         }
         return incident;
     }
 
-    // =================================================================== REPORTER ACTIONS
+    // Reporter actions
 
     public Incident provideInformation(Long id, User user, String text) {
         Incident incident = find(id);
@@ -374,7 +394,7 @@ public class IncidentService {
         return incident;
     }
 
-    // =================================================================== INTELLIGENCE
+    // Similar incidents, suggestions and recommendations
 
     @Transactional(readOnly = true)
     public Optional<CategorySuggestion> suggestCategory(String text) {
@@ -399,7 +419,7 @@ public class IncidentService {
         return smartAssignment.rank(incident, candidatesFor(incident));
     }
 
-    // =================================================================== helpers
+    // Helpers
 
     @Transactional(readOnly = true)
     public Incident find(Long id) {

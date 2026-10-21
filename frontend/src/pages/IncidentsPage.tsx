@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
-import { Link, useSearchParams } from 'react-router'
+import { useSearchParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
-import { Download, Filter, PlusCircle, RotateCcw, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { adminApi, catalogApi, incidentApi } from '../api/endpoints'
 import { PRIORITIES, STATUS_ORDER, type IncidentSummary, type SearchCriteria } from '../api/types'
 import { useUser } from '../auth/AuthContext'
@@ -15,7 +15,7 @@ import { PRIORITY_LABEL, SLA_LABEL, STATUS_LABEL } from '../lib/format'
 const FILTER_KEYS = ['keyword', 'reference', 'status', 'priority', 'slaState', 'serviceId', 'categoryId', 'technicianId', 'createdFrom', 'createdTo'] as const
 
 /**
- * Search and filter incidents with 10 criteria (the brief asks for 5).
+ * Search and filter incidents with 10 criteria.
  * Filters live in the URL, so a filtered list can be bookmarked or shared.
  * Employees automatically only get their own incidents (enforced by the backend).
  */
@@ -52,21 +52,18 @@ export function IncidentsPage() {
   const title = user.role === 'EMPLOYEE' ? 'My incidents' : user.role === 'TECHNICIAN' ? 'Incidents' : 'All incidents'
 
   return (
-    <div className="animate-in">
+    <div>
       <PageHeader
         title={title}
         subtitle={user.role === 'EMPLOYEE' ? 'Everything you have reported' : 'Search across every incident'}
-        actions={<>
-          <Button variant="secondary" icon={<Download className="size-4" />} disabled={!data?.length} onClick={() => data && exportCsv(data)}>Export CSV</Button>
-          {user.role !== 'TECHNICIAN' && <Link to="/incidents/new"><Button icon={<PlusCircle className="size-4" />}>Report incident</Button></Link>}
-        </>}
+        actions={<Button variant="secondary" disabled={!data?.length} onClick={() => data && exportCsv(data)}>Export CSV</Button>}
       />
 
       <Card className="mb-4 p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="relative sm:col-span-2">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint" />
-            <Input aria-label="Keyword" placeholder="Search title and description…" defaultValue={params.get('keyword') ?? ''}
+            <Input aria-label="Keyword" placeholder="Search title and description" defaultValue={params.get('keyword') ?? ''}
               key={params.get('keyword') ?? ''} className="pl-9"
               onKeyDown={(e) => e.key === 'Enter' && set('keyword', (e.target as HTMLInputElement).value.trim())}
               onBlur={(e) => e.target.value.trim() !== (params.get('keyword') ?? '') && set('keyword', e.target.value.trim())} />
@@ -114,15 +111,14 @@ export function IncidentsPage() {
           </div>
         </div>
         <div className="mt-3 flex items-center justify-between text-xs text-muted">
-          <span className="inline-flex items-center gap-1.5">
-            <Filter className="size-3.5" />
-            {data ? `${data.length} incident${data.length === 1 ? '' : 's'}` : 'Loading…'}
+          <span>
+            {data ? `${data.length} incident${data.length === 1 ? '' : 's'}` : 'Loading'}
             {active > 0 && ` · ${active} filter${active === 1 ? '' : 's'}`}
-            {isFetching && !isLoading && ' · updating…'}
+            {isFetching && !isLoading && ' · updating'}
           </span>
           {active > 0 && (
-            <button onClick={() => setParams({}, { replace: true })} className="inline-flex items-center gap-1 font-medium text-brand hover:underline cursor-pointer">
-              <RotateCcw className="size-3.5" /> Clear filters
+            <button onClick={() => setParams({}, { replace: true })} className="font-medium text-brand hover:underline cursor-pointer">
+              Clear filters
             </button>
           )}
         </div>

@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Boxes, Pencil, Plus, Tags } from 'lucide-react'
 import { adminApi, type CategoryBody, type ServiceBody } from '../../api/endpoints'
 import { ApiError } from '../../api/client'
 import type { Category, Service } from '../../api/types'
@@ -24,17 +23,17 @@ export function CatalogPage() {
   const [editCategory, setEditCategory] = useState<Category | 'new' | null>(null)
 
   return (
-    <div className="animate-in">
-      <PageHeader eyebrow="Administration" title="Services & categories"
-        subtitle="New categories work immediately: no code change, the categoriser and assignment use them at once."
+    <div>
+      <PageHeader title="Services and categories"
+        subtitle="Categories added here are used straight away by auto-categorisation and assignment, with no code change."
         actions={tab === 'services'
-          ? <Button icon={<Plus className="size-4" />} onClick={() => setEditService('new')}>New service</Button>
-          : <Button icon={<Plus className="size-4" />} onClick={() => setEditCategory('new')}>New category</Button>} />
+          ? <Button onClick={() => setEditService('new')}>New service</Button>
+          : <Button onClick={() => setEditCategory('new')}>New category</Button>} />
       <Card>
         <div className="px-4 pt-2">
           <Tabs<TabKey> value={tab} onChange={setTab} tabs={[
-            { value: 'services', label: <><Boxes className="size-4" /> IT services</>, count: services.data?.length },
-            { value: 'categories', label: <><Tags className="size-4" /> Categories</>, count: categories.data?.length },
+            { value: 'services', label: 'IT services', count: services.data?.length },
+            { value: 'categories', label: 'Categories', count: categories.data?.length },
           ]} />
         </div>
         {tab === 'services' && (services.error ? <div className="p-5"><ErrorState error={services.error} /></div> : services.isLoading ? <PageLoader /> : (
@@ -46,7 +45,7 @@ export function CatalogPage() {
                   <p className="text-sm font-medium text-fg">{s.name} {!s.active && <Badge className="ml-1">Inactive</Badge>}</p>
                   <p className="truncate text-xs text-muted">{s.description}</p>
                 </div>
-                <Button size="sm" variant="ghost" icon={<Pencil className="size-3.5" />} onClick={() => setEditService(s)}>Edit</Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditService(s)}>Edit</Button>
               </li>
             ))}
           </ul>
@@ -55,7 +54,6 @@ export function CatalogPage() {
           <ul className="divide-y divide-line">
             {[...(categories.data ?? [])].sort((a, b) => a.name.localeCompare(b.name)).map((c) => (
               <li key={c.id} className={cn('flex items-start gap-4 px-5 py-3.5', !c.active && 'opacity-60')}>
-                <span className="mt-0.5 rounded-lg bg-brand-soft p-2 text-brand"><Tags className="size-4" /></span>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-fg">{c.name} <span className="font-normal text-muted">· {c.description}</span></p>
                   <div className="mt-1.5 flex flex-wrap gap-1">
@@ -65,7 +63,7 @@ export function CatalogPage() {
                     {!c.keywords && <span className="text-xs text-faint">No keywords: used when nothing else matches</span>}
                   </div>
                 </div>
-                <Button size="sm" variant="ghost" icon={<Pencil className="size-3.5" />} onClick={() => setEditCategory(c)}>Edit</Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditCategory(c)}>Edit</Button>
               </li>
             ))}
           </ul>
@@ -115,7 +113,7 @@ function ServiceModal({ service, onClose }: { service: Service | null; onClose: 
       footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button loading={save.isPending} onClick={() => save.mutate(form)}>Save</Button></>}>
       <div className="space-y-4">
         <Field label="Name" required><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
-        <Field label="Description"><Textarea rows={2} className="min-h-0" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
+        <Field label="Description"><Textarea rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
         <Field label="Business criticality" hint="1 = nice to have, 5 = the business stops without it">
           <Segmented name="Criticality" value={String(form.businessCriticality)} onChange={(v) => setForm({ ...form, businessCriticality: Number(v) })}
             options={['1', '2', '3', '4', '5'].map((v) => ({ value: v, label: v }))} />
@@ -142,7 +140,7 @@ function CategoryModal({ category, onClose }: { category: Category | null; onClo
         </Field>
         <Field label="Description"><Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
         <Field label="Keywords" hint="Comma separated, e.g. printer, toner, scanner">
-          <Textarea rows={3} className="min-h-0 font-mono text-xs" value={form.keywords} onChange={(e) => setForm({ ...form, keywords: e.target.value })} />
+          <Textarea rows={3} className="font-mono text-xs" value={form.keywords} onChange={(e) => setForm({ ...form, keywords: e.target.value })} />
         </Field>
         {category && <label className="flex items-center gap-3 text-sm text-fg"><Toggle checked={!!form.active} onChange={(v) => setForm({ ...form, active: v })} label="Active" /> Active</label>}
       </div>
