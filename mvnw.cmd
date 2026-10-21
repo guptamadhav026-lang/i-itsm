@@ -174,9 +174,32 @@ if (!$actualDistributionDir) {
 }
 
 Write-Verbose "Found extracted Maven distribution directory: $actualDistributionDir"
-Rename-Item -Path "$TMP_DOWNLOAD_DIR/$actualDistributionDir" -NewName $MAVEN_HOME_NAME | Out-Null
+# I-ITSM change: antivirus software (e.g. Windows Defender) often scans freshly unpacked files and keeps
+# them locked for a few seconds, so renaming or moving the folder at once fails with "access denied".
+# Retry for up to 60 seconds instead of giving up on the first try.
+$renamed = $false
+for ($attempt = 1; ($attempt -le 30) -and (! $renamed); $attempt++) {
+  try {
+    Rename-Item -Path "$TMP_DOWNLOAD_DIR/$actualDistributionDir" -NewName $MAVEN_HOME_NAME -ErrorAction Stop | Out-Null
+    $renamed = $true
+  } catch {
+    Start-Sleep -Seconds 2
+  }
+}
+if (! $renamed) {
+  Write-Error "Cannot rename $TMP_DOWNLOAD_DIR/$actualDistributionDir (a virus scanner may be locking it, try again)"
+}
 try {
-  Move-Item -Path "$TMP_DOWNLOAD_DIR/$MAVEN_HOME_NAME" -Destination $MAVEN_HOME_PARENT | Out-Null
+  $moved = $false
+  for ($attempt = 1; ($attempt -le 30) -and (! $moved); $attempt++) {
+    try {
+      Move-Item -Path "$TMP_DOWNLOAD_DIR/$MAVEN_HOME_NAME" -Destination $MAVEN_HOME_PARENT -ErrorAction Stop | Out-Null
+      $moved = $true
+    } catch {
+      if (Test-Path -Path "$MAVEN_HOME" -PathType Container) { $moved = $true } else { Start-Sleep -Seconds 2 }
+    }
+  }
+  if (! $moved) { throw "fail to move MAVEN_HOME" }
 } catch {
   if (! (Test-Path -Path "$MAVEN_HOME" -PathType Container)) {
     Write-Error "fail to move MAVEN_HOME"
