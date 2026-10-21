@@ -1,6 +1,6 @@
 # I-ITSM Test Cases
 
-Run all of them with `mvnw.cmd test` (Windows) or `./mvnw test`. Result on 15 Oct 2026: **31 run, 31 passed**.
+Run all of them with `mvnw.cmd test` (Windows) or `./mvnw test`. Result on 21 Oct 2026: **33 run, 33 passed** (backend) and **19 run, 19 passed** (frontend, `npm test` in `frontend/`).
 
 Types: **N** normal operation · **B** boundary · **I** invalid input · **E** exception · **A** authorization · **R** business rule.
 
@@ -37,3 +37,28 @@ Types: **N** normal operation · **B** boundary · **I** invalid input · **E** 
 | TC29 | N, A | `IncidentApiTest.search` | priority=P1 & keyword=payment (admin); status=CLOSED (john); reference=INC0003 | Only P1 payment incidents; john sees only his own; exact match | Pass |
 | TC30 | R | `IncidentApiTest.adminConfiguration` | Switch to load_based; add PRINTING category; suggest category for "printer is out of toner" | LOAD_BASED active; category created; PRINTING suggested (no code change) | Pass |
 | TC31 | N | `IncidentApiTest.reports` | Overview, workload, correlations, SLA risk | 6 incidents, 2 critical open, alice listed, Payment Gateway cluster | Pass |
+| TC32 | A, R | `LiveUpdateTest.onlyAllowedViewersReceiveUpdates` | Incident reported by emp101 is acknowledged | Live update sent once with type ACKNOWLEDGED; reporter, technicians and admins receive it, another employee does not | Pass |
+| TC33 | A, N | `IncidentApiTest.liveStream` | `GET /api/live` without and with a token | 401; then 200, stream stays open, `text/event-stream` | Pass |
+
+## Frontend unit tests (Vitest)
+
+| ID | Test file | What is checked | Result |
+|---|---|---|---|
+| FT01–FT07 | `permissions.test.ts` | Assigned technician can acknowledge; another technician only comments; resolve/ask/note while in progress; only reporter or admin verifies/reopens; "provide info" only after a question; feedback once, no comments when closed; admin assigns only while allowed | Pass |
+| FT08–FT10 | `priority.test.ts` | Form preview equals `WeightedPriorityStrategy`: payment outage = 60 → P1; LOW×LOW×2 = 2 → P4; 150 users raises 18 (P3) to 27 (P2) | Pass |
+| FT11–FT14 | `format.test.ts` | "2 h 05 min", "1:04:09", "3 min ago", "yesterday", initials, readable enum names | Pass |
+| FT15–FT17 | `live.test.ts` | Event-stream parser: named JSON event, heartbeat ignored, events split across network chunks | Pass |
+| FT18–FT19 | `components.test.tsx` | Lifecycle stepper shows all 8 stages; status and priority badges show words, not only colour | Pass |
+
+## Browser walkthrough
+
+The three demo workflows of [GUIDE.md section 15](GUIDE.md#15-demo-video-script-3-workflows) were run
+end to end in Chromium (Playwright) against the real backend on a fresh database, with two or three users
+logged in at the same time. No browser errors and no failed requests. Screenshots of each step are in
+[screenshots/](screenshots).
+
+| ID | Workflow | Checked | Result |
+|---|---|---|---|
+| UI01 | John reports a VPN problem | Preview shows NETWORK + P3; result shows P3 explanation, SLA deadlines, assigned to Alice; Alice's open dashboard updates live | Pass |
+| UI02 | Alice and John run it to Closed | Acknowledge, start, ask; question appears live for John; his answer appears live for Alice; Smart assist suggests INC0001's fix; resolve; John verifies, rates 5 stars, closes; history lists every step | Pass |
+| UI03 | Admin | Correlation banner; strategy switch; Priya's payment incident flagged as duplicate of INC0003; ranked recommendation; reports; users, catalog, SLA, audit pages; dark mode; phone layout | Pass |

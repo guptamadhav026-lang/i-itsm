@@ -91,4 +91,65 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <!--
+      "ui" profile: also builds the React web app (frontend/) and puts it inside the jar,
+      so ONE command runs everything on http://localhost:8080 :
+          mvnw.cmd -Pui spring-boot:run        (Windows)
+          ./mvnw -Pui spring-boot:run          (macOS / Linux)
+      Node.js is downloaded automatically into frontend/node, nothing to install.
+    -->
+    <profile>
+      <id>ui</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>com.github.eirslett</groupId>
+            <artifactId>frontend-maven-plugin</artifactId>
+            <version>1.15.1</version>
+            <configuration>
+              <workingDirectory>frontend</workingDirectory>
+              <nodeVersion>v22.22.0</nodeVersion>
+            </configuration>
+            <executions>
+              <execution>
+                <id>install-node-and-npm</id>
+                <goals><goal>install-node-and-npm</goal></goals>
+                <phase>generate-resources</phase>
+              </execution>
+              <execution>
+                <id>npm-install</id>
+                <goals><goal>npm</goal></goals>
+                <phase>generate-resources</phase>
+                <configuration><arguments>install --no-audit --no-fund</arguments></configuration>
+              </execution>
+              <execution>
+                <id>npm-build</id>
+                <goals><goal>npm</goal></goals>
+                <phase>generate-resources</phase>
+                <configuration><arguments>run build</arguments></configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <artifactId>maven-resources-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>copy-web-app</id>
+                <phase>process-resources</phase>
+                <goals><goal>copy-resources</goal></goals>
+                <configuration>
+                  <outputDirectory>${project.build.outputDirectory}/static</outputDirectory>
+                  <resources>
+                    <resource><directory>frontend/dist</directory></resource>
+                  </resources>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

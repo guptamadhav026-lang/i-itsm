@@ -1,0 +1,6 @@
+node_modules/
+dist/
+# Node.js downloaded by the Maven "ui" profile
+node/
+*.local
+*.tsbuildinfo

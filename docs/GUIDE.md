@@ -2,6 +2,7 @@
 
 This guide explains the whole backend so that anyone in the team can open any file, understand it,
 and explain it in the report and the demo video. Read it top to bottom once; later use it as a map.
+The React frontend has its own guide: [FRONTEND_GUIDE.md](FRONTEND_GUIDE.md).
 
 Contents
 1. [The big picture](#1-the-big-picture)
@@ -19,7 +20,7 @@ Contents
 13. [Exceptions](#13-exceptions)
 14. [Spring words explained](#14-spring-words-explained)
 15. [Demo video script (3 workflows)](#15-demo-video-script-3-workflows)
-16. [What comes next](#16-what-comes-next)
+16. [The frontend](#16-the-frontend)
 
 ---
 
@@ -115,7 +116,8 @@ Each says which statuses may come next. `IncidentStateFactory` hands out the rig
 
 ### `event/` – Observer pattern
 `IncidentEvent` (what happened), `IncidentEventPublisher` (the subject), `IncidentEventListener` interface
-with two observers: `AuditTrailListener` and `NotificationEventListener`.
+with three observers: `AuditTrailListener`, `NotificationEventListener` and `live/LiveUpdateListener`
+(pushes the change to open browsers; added later without touching the other two).
 
 ### `notification/`
 `NotificationChannel` interface, `InAppNotificationChannel`, `EmailNotificationChannel` (simulated: it logs
@@ -384,6 +386,7 @@ Full interactive list: http://localhost:8080/swagger-ui.html
 | `/api/admin/users`, `/technicians`, `/services`, `/categories`, `/sla-policies`, `/strategies/...`, `/audit` | admin | administration |
 | `/api/reports/overview`, `/technician-workload`, `/services`, `/categories`, `/sla-risk`, `/correlations` | admin | dashboards |
 | `GET /api/notifications`, `/unread-count`, `POST /api/notifications/{id}/read` | all | notifications |
+| `GET /api/live` | logged in | live updates stream (Server-Sent Events, stays open) |
 
 ---
 
@@ -435,36 +438,45 @@ error, message, path, fieldErrors.
 
 ## 15. Demo video script (3 workflows)
 
-The brief wants at least three complete workflows. With the demo data, these work straight away
-(in Swagger now, in the real UI once it exists).
+The brief wants at least three complete workflows. With the demo data they work straight away in the
+web app (run `mvnw.cmd -Pui spring-boot:run`, open http://localhost:8080). For the video, open two
+browser windows side by side (one normal, one private) so the live updates are visible.
+Screenshots of every step are in [screenshots/](screenshots).
 
-**Workflow 1 – report, auto-prioritise, assign, notify**
-1. Log in as `john`; `POST /api/incidents` for "Corporate Network" with "wifi keeps dropping", impact MEDIUM, urgency HIGH, 25 users.
-2. Show the response: category NETWORK (auto), priority P2 with the explanation, SLA deadlines, assigned to alice.
-3. Log in as `alice`; `GET /api/notifications` shows the assignment.
+**Workflow 1 – report, auto-classify, prioritise, assign, notify**
+1. Window A: log in as **John**. Click **Report an incident**.
+2. Title "VPN keeps dropping every few minutes", a short description, service **Corporate Network**.
+   Point at the preview panel: category NETWORK (matched keywords), estimated priority with the formula,
+   SLA targets.
+3. Submit. The result screen shows category, priority explanation, SLA deadlines and "Assigned to Alice".
+4. Window B: logged in as **Alice**, her dashboard already shows the new incident under
+   "Acknowledge these first" and the bell shows a new notification, without reloading.
 
-**Workflow 2 – investigate, SLA, resolve, verify**
-1. As `alice`: acknowledge, start, add a note, request info.
-2. As `john`: `info-response`.
-3. As `alice`: `GET /similar` and `GET /suggested-resolutions`, then resolve.
-4. As `john`: verify, close, feedback. Show `GET /api/incidents/{id}/audit` (full history).
-5. As `admin`: `GET /api/reports/sla-risk` and `GET /api/reports/overview`.
+**Workflow 2 – investigate, ask, resolve, verify, close**
+1. Alice opens the incident: **Acknowledge** (response SLA becomes Met), **Start investigation**,
+   **Ask reporter** "Does it happen on the office Wi-Fi as well?".
+2. John's window shows the yellow question banner by itself. He types an answer and clicks **Send reply**.
+3. Alice opens **Smart assist**: the fix from INC0001 is suggested. **Use this fix** → **Mark as resolved**.
+4. John: **Yes, it's fixed**, give 5 stars, **Close incident**. Open the **History** tab: every step,
+   who did it and when.
 
-**Workflow 3 – duplicates, correlation, escalation**
-1. As `admin`: `GET /api/incidents` shows INC0004 flagged `potentialDuplicate` of INC0003.
-2. `GET /api/reports/correlations` shows the Payment Gateway cluster.
-3. Wait 5+ minutes without acknowledging INC0003 (P1): the SLA monitor escalates it and admins get
-   "escalated" notifications. (`SlaMonitorServiceTest` proves the same thing instantly.)
-4. Switch strategy: `PUT /api/admin/strategies/assignment {"name":"LOAD_BASED"}` and report another incident.
+**Workflow 3 – administrator: duplicates, correlation, assignment, strategies, reports**
+1. Log in as **Asha (admin)**. The red banner "Possible major incident on Payment Gateway" is the
+   correlation feature. The SLA risk list shows any open incident likely to miss its deadline.
+2. As **Priya**, report "Payment application unavailable for customers" on Payment Gateway. The result
+   screen warns it looks like INC0003 (duplicate detection); the admin dashboard updates live.
+3. Admin opens it → **Reassign**: technicians ranked with the reasons (skills, experience, history,
+   workload).
+4. **Strategies**: switch assignment to Load based (no restart), then back to Smart.
+5. **Reports**: SLA compliance, charts (each with a Table view), technician workload. Toggle dark mode.
+6. Escalation: leave a P1 unacknowledged for 5+ minutes; the SLA monitor escalates it and the badge and
+   notifications appear. (`SlaMonitorServiceTest` proves the same thing instantly.)
 
 ---
 
-## 16. What comes next
+## 16. The frontend
 
-Everything above is shared by both frontend options:
-
-* **Option A (Thymeleaf/Vaadin, Java only):** controllers that return HTML pages would call the same
-  services (`IncidentService`, `ReportService`...).
-* **Option C (React):** the React app calls exactly the REST API in section 12.
-
-Either way, nothing in `model/`, `service/`, `strategy/`, `event/`, `intelligence/` changes.
+The React app in `frontend/` calls exactly the REST API in section 12 and listens to `/api/live`.
+It has no business rules of its own, so nothing in `model/`, `service/`, `strategy/`, `event/` or
+`intelligence/` had to change for it. Everything about it, including how to run it, how React compares
+to Java and which screen covers which requirement, is in [FRONTEND_GUIDE.md](FRONTEND_GUIDE.md).

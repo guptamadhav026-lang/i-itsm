@@ -410,7 +410,7 @@ public class IncidentService {
     private Incident addNote(Incident incident, User user, NoteType type, String text, IncidentEventType eventType) {
         IncidentNote note = incident.addNote(user, type, text, now());
         publish(eventType, incident, user.getUsername(), incident.getStatus(),
-                type + " by " + user.getUsername() + ": " + note.getText());
+                type.label() + " from " + user.getUsername() + ": " + note.getText());
         return incident;
     }
 

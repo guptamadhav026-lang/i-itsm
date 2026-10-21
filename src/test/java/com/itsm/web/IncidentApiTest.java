@@ -20,7 +20,9 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -201,5 +203,15 @@ class IncidentApiTest {
         mvc.perform(get("/api/reports/correlations").header("Authorization", admin))
                 .andExpect(jsonPath("$[0].serviceName", is("Payment Gateway")));
         mvc.perform(get("/api/reports/sla-risk").header("Authorization", admin)).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("TC33 The live-update stream needs a login and then stays open as text/event-stream")
+    void liveStream() throws Exception {
+        mvc.perform(get("/api/live")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/live").header("Authorization", login("alice")))
+                .andExpect(status().isOk())
+                .andExpect(request().asyncStarted())
+                .andExpect(header().string("Content-Type", org.hamcrest.Matchers.startsWith("text/event-stream")));
     }
 }

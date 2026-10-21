@@ -16,7 +16,8 @@ import java.util.List;
  * Predicts which open incidents are likely to violate their SLA before it happens:
  * <pre>
  *   risk = 70 × (share of resolution time used, max 1)
- *        + 15 if nobody has acknowledged it yet
+ *        + 30 if the response deadline was already missed, otherwise
+ *          + 15 if nobody has acknowledged it yet
  *        + 15 if it is still waiting for information from the reporter
  * </pre>
  * Incidents with risk ≥ {@value #RISK_THRESHOLD} (or already AT_RISK/BREACHED) are listed, riskiest first.
@@ -47,7 +48,10 @@ public class SlaRiskAnalyzer {
         List<String> reasons = new ArrayList<>();
         double risk = Math.min(1.0, elapsed) * 70;
         reasons.add(Math.round(elapsed * 100) + "% of resolution time used");
-        if (incident.getAcknowledgedAt() == null) {
+        if (incident.isResponseBreached()) {
+            risk += 30;
+            reasons.add("response deadline already missed");
+        } else if (incident.getAcknowledgedAt() == null) {
             risk += 15;
             reasons.add("not yet acknowledged");
         }
