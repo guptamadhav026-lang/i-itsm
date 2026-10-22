@@ -67,7 +67,8 @@ public class SlaMonitorService {
         }
         incident.markResponseBreached();
         publish(IncidentEventType.SLA_VIOLATED, incident,
-                "Response SLA violated: not acknowledged by " + incident.getResponseDeadline());
+                "Nobody acknowledged it by " + TimeText.of(incident.getResponseDeadline(), clock)
+                        + ", so the response SLA was missed");
         return true;
     }
 
@@ -77,7 +78,8 @@ public class SlaMonitorService {
         }
         incident.markResolutionBreached();
         publish(IncidentEventType.SLA_VIOLATED, incident,
-                "Resolution SLA violated: not resolved by " + incident.getResolutionDeadline());
+                "Not resolved by " + TimeText.of(incident.getResolutionDeadline(), clock)
+                        + ", so the resolution SLA was missed");
         return true;
     }
 
@@ -92,7 +94,7 @@ public class SlaMonitorService {
         }
         incident.markSlaWarningSent();
         publish(IncidentEventType.SLA_WARNING, incident, String.format(
-                "SLA approaching: %.0f%% of the resolution time used, %d minutes left",
+                "%.0f%% of the resolution time is used up, %d min left",
                 usedPercent, slaService.minutesLeft(incident, now)));
         return true;
     }
@@ -109,8 +111,8 @@ public class SlaMonitorService {
         boolean escalated = false;
         while (incident.getEscalationLevel().ordinal() < levelsDue) {
             incident.escalate();
-            publish(IncidentEventType.ESCALATED, incident, "Not acknowledged in time - escalated to "
-                    + incident.getEscalationLevel());
+            publish(IncidentEventType.ESCALATED, incident, "Still not acknowledged, escalated to "
+                    + incident.getEscalationLevel().getLabel());
             escalated = true;
         }
         return escalated;

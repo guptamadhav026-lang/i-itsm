@@ -3,11 +3,11 @@ import { cn } from '../../lib/cn'
 import { EVENT_LABEL, formatDateTime, NOTE_LABEL, STATUS_LABEL, timeAgo } from '../../lib/format'
 import { Avatar, EmptyState } from '../ui/misc'
 
-const noteStyle: Record<NoteType, string> = {
-  INVESTIGATION: 'text-blue-700 dark:text-blue-300',
-  INFO_REQUEST: 'text-amber-700 dark:text-amber-300',
-  INFO_RESPONSE: 'text-emerald-700 dark:text-emerald-300',
-  COMMENT: 'text-muted',
+const noteStyle: Record<NoteType, { label: string; box: string }> = {
+  INVESTIGATION: { label: 'text-blue-700 dark:text-blue-300', box: 'border-l-blue-500' },
+  INFO_REQUEST: { label: 'text-amber-700 dark:text-amber-300', box: 'border-l-amber-500 bg-amber-50/60 dark:bg-amber-950/20' },
+  INFO_RESPONSE: { label: 'text-emerald-700 dark:text-emerald-300', box: 'border-l-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20' },
+  COMMENT: { label: 'text-faint', box: 'border-l-line-strong' },
 }
 
 /** Conversation on the incident: investigation notes, questions to the reporter, answers, comments. */
@@ -17,21 +17,19 @@ export function NotesTimeline({ notes }: { notes: Note[] }) {
   }
   return (
     <ol className="space-y-5">
-      {notes.map((n) => {
-        return (
-          <li key={n.id} className="flex gap-3">
-            <Avatar name={n.author.fullName} />
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span className="text-sm font-medium text-fg">{n.author.fullName}</span>
-                <span className={cn('text-xs font-medium', noteStyle[n.type])}>{NOTE_LABEL[n.type]}</span>
-                <span className="text-xs text-faint" title={formatDateTime(n.createdAt)}>{timeAgo(n.createdAt)}</span>
-              </div>
-              <p className="mt-1 whitespace-pre-wrap text-sm text-fg">{n.text}</p>
+      {notes.map((n) => (
+        <li key={n.id} className="flex gap-3">
+          <Avatar name={n.author.fullName} />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              <span className="text-sm font-medium text-fg">{n.author.fullName}</span>
+              <span className={cn('text-xs font-medium', noteStyle[n.type].label)}>{NOTE_LABEL[n.type]}</span>
+              <span className="text-xs text-faint" title={formatDateTime(n.createdAt)}>{timeAgo(n.createdAt)}</span>
             </div>
-          </li>
-        )
-      })}
+            <p className={cn('mt-1.5 whitespace-pre-wrap rounded-r-md border-l-2 py-1.5 pl-3 pr-2 text-sm leading-relaxed text-fg', noteStyle[n.type].box)}>{n.text}</p>
+          </div>
+        </li>
+      ))}
     </ol>
   )
 }

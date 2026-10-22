@@ -7,7 +7,7 @@ type Size = 'sm' | 'md' | 'lg'
 
 const variants: Record<Variant, string> = {
   primary: 'bg-brand text-brand-fg hover:bg-brand-hover',
-  secondary: 'bg-surface text-fg border border-line-strong hover:bg-surface-2',
+  secondary: 'bg-surface text-fg border border-line-strong shadow-card hover:bg-surface-2',
   ghost: 'text-muted hover:text-fg hover:bg-surface-2',
   danger: 'bg-red-600 text-white hover:bg-red-700',
   success: 'bg-emerald-600 text-white hover:bg-emerald-700',
@@ -34,7 +34,7 @@ export function Button({
       type={type}
       disabled={disabled || loading}
       className={cn(
-        'inline-flex items-center justify-center rounded font-medium whitespace-nowrap transition-colors',
+        'inline-flex items-center justify-center rounded-md font-medium whitespace-nowrap transition-colors',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
         'disabled:opacity-50 disabled:pointer-events-none cursor-pointer',
         variants[variant], sizes[size], className,

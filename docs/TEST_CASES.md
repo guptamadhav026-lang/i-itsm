@@ -1,6 +1,6 @@
 # I-ITSM Test Cases
 
-Run all of them with `mvnw.cmd test` (Windows) or `./mvnw test`. Result on 21 Oct 2026: 36 run, 36 passed (backend) and 19 run, 19 passed (frontend, `npm test` in `frontend/`).
+Run all of them with `mvnw.cmd test` (Windows) or `./mvnw test`. Result on 22 Oct 2026: 37 run, 37 passed (backend) and 20 run, 20 passed (frontend, `npm test` in `frontend/`).
 
 Types: N = normal operation, B = boundary, I = invalid input, E = exception, A = authorization, R = business rule.
 
@@ -42,6 +42,7 @@ Types: N = normal operation, B = boundary, I = invalid input, E = exception, A =
 | TC34 | E, R | `IncidentApiTest.repeatedReport` | Rohan reports "Office wifi not working" twice (second time with different spacing and case); Priya reports the same | Second report from Rohan refused with 409 (`DuplicateIncidentException`, message names the open incident); Priya's report accepted and linked as a possible duplicate | Pass |
 | TC35 | E | `NotificationServiceTest.mailServerDown` | Important notification while the e-mail channel throws `NetworkFailureException` | No exception reaches the caller; the in-app notification is still delivered | Pass |
 | TC36 | E | `GlobalExceptionHandlerTest.databaseDown` | A `DataAccessResourceFailureException` reaches the API | Turned into `DatabaseFailureException`: 503 with "The database is not available right now, please try again" | Pass |
+| TC37 | N, R | `IncidentApiTest.serviceStatus` | Priya (employee) asks for `GET /api/catalog/service-status` on the demo data | 200; first row is Payment Gateway with 2 open incidents, highest P1; no incident titles are sent, so employees cannot read other people's reports | Pass |
 
 ## Frontend unit tests (Vitest)
 
@@ -49,9 +50,9 @@ Types: N = normal operation, B = boundary, I = invalid input, E = exception, A =
 |---|---|---|---|
 | FT01-FT07 | `permissions.test.ts` | Assigned technician can acknowledge; another technician only comments; resolve/ask/note while in progress; only reporter or admin verifies/reopens; "provide info" only after a question; feedback once, no comments when closed; admin assigns only while allowed | Pass |
 | FT08-FT10 | `priority.test.ts` | Form preview equals `WeightedPriorityStrategy`: payment outage = 60 gives P1; LOW x LOW x 2 = 2 gives P4; 150 users raises 18 (P3) to 27 (P2) | Pass |
-| FT11-FT14 | `format.test.ts` | "2 h 05 min", "1:04:09", "3 min ago", "yesterday", initials, readable enum names | Pass |
-| FT15-FT17 | `live.test.ts` | Event-stream parser: named JSON event, heartbeat ignored, events split across network chunks | Pass |
-| FT18-FT19 | `components.test.tsx` | Lifecycle stepper shows all 8 stages; status and priority badges show words, not only colour | Pass |
+| FT11-FT15 | `format.test.ts` | "2 h 05 min", "8 h", "1:04:09", "3 min ago", "yesterday", initials, readable enum, category and strategy names, greeting by time of day, Today/Yesterday labels | Pass |
+| FT16-FT18 | `live.test.ts` | Event-stream parser: named JSON event, heartbeat ignored, events split across network chunks | Pass |
+| FT19-FT20 | `components.test.tsx` | Lifecycle stepper shows all 8 stages; status and priority badges show words, not only colour | Pass |
 
 ## Browser walkthrough
 
@@ -64,3 +65,4 @@ Screenshots of each step are in [screenshots/](screenshots).
 | UI01 | Rohan reports a VPN problem | Preview shows NETWORK and P3; result page shows the P3 calculation, SLA deadlines and that Ananya was assigned; Ananya's open dashboard updates by itself | Pass |
 | UI02 | Ananya and Rohan take it to Closed | Acknowledge, start, ask a question; the question appears for Rohan without reloading, and his answer appears for Ananya; the Similar incidents tab suggests the fix used on INC0001; resolve; Rohan confirms, gives 5 stars, closes; History lists every step | Pass |
 | UI03 | Kavita (admin) | Possible major incident banner; strategy switch; Priya's payment incident flagged as a possible duplicate of INC0003; ranked technicians in the assign dialog; reports; users, catalogue, SLA, audit pages; dark mode; phone layout | Pass |
+| UI04 | Every page, every role (22 Oct) | All pages opened as Rohan, Priya, Ananya and Kavita on desktop, on a phone-sized screen and in dark mode, plus every dialog; no page wider than the screen, no browser errors except the expected ones (wrong password 401, another employee's incident 403, INC0099 404), each shown as a clear message | Pass |

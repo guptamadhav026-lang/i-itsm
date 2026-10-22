@@ -125,6 +125,7 @@ export interface IncidentDetail {
   resolutionBreached: boolean
   escalationLevel: EscalationLevel
   potentialDuplicateOf: string | null
+  potentialDuplicateOfId: number | null
   resolution: string | null
   awaitingReporterInfo: boolean
   feedbackRating: number | null
@@ -284,4 +285,11 @@ export interface SearchCriteria {
   createdTo?: string
   slaState?: SlaState
   keyword?: string
+}
+
+export interface ServiceStatus {
+  serviceId: number
+  serviceName: string
+  openIncidents: number
+  highestPriority: Priority | null
 }

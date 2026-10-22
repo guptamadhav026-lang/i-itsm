@@ -63,6 +63,10 @@ public class ReportService {
     public record CountRow(String name, long total, long open, long slaViolations) {
     }
 
+    /** One IT service that has unresolved incidents right now. Counts only, no incident details. */
+    public record ServiceStatus(Long serviceId, String serviceName, long openIncidents, Priority highestPriority) {
+    }
+
     public Overview overview() {
         List<Incident> all = incidents.findAll();
         long resolved = all.stream().filter(i -> i.getResolvedAt() != null).count();
@@ -112,6 +116,22 @@ public class ReportService {
 
     public List<SlaRisk> slaRisks() {
         return slaRiskAnalyzer.analyse(incidents.findByStatusIn(IncidentStatus.UNRESOLVED), Instant.now(clock));
+    }
+
+    /**
+     * Services with open problems, worst first. Every user sees this ("known issues"), so an employee
+     * can tell that a problem is already being worked on before reporting it again.
+     */
+    public List<ServiceStatus> serviceStatus() {
+        Map<Long, List<Incident>> open = incidents.findByStatusIn(IncidentStatus.UNRESOLVED).stream()
+                .collect(Collectors.groupingBy(i -> i.getService().getId()));
+        return open.values().stream()
+                .map(group -> new ServiceStatus(group.get(0).getService().getId(), group.get(0).getService().getName(),
+                        group.size(), group.stream().map(Incident::getPriority).filter(p -> p != null)
+                                .min(Comparator.naturalOrder()).orElse(null)))
+                .sorted(Comparator.comparing(ServiceStatus::highestPriority, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(Comparator.comparingLong(ServiceStatus::openIncidents).reversed()))
+                .toList();
     }
 
     public List<CorrelationCluster> correlations() {

@@ -2,7 +2,7 @@ import { forwardRef, type InputHTMLAttributes, type ReactNode, type SelectHTMLAt
 import { cn } from '../../lib/cn'
 
 const control =
-  'w-full rounded border border-line-strong bg-surface px-3 text-sm text-fg placeholder:text-faint ' +
+  'w-full rounded-md border border-line-strong bg-surface px-3 text-sm text-fg placeholder:text-faint ' +
   'focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring ' +
   'disabled:opacity-60 aria-invalid:border-red-500 aria-invalid:ring-red-500'
 
@@ -60,7 +60,7 @@ interface SegmentedProps<T extends string> {
 /** A row of buttons where exactly one is selected (used for impact/urgency). */
 export function Segmented<T extends string>({ value, options, onChange, name }: SegmentedProps<T>) {
   return (
-    <div role="radiogroup" aria-label={name} className="grid grid-flow-col auto-cols-fr overflow-hidden rounded border border-line-strong divide-x divide-line-strong">
+    <div role="radiogroup" aria-label={name} className="grid grid-flow-col auto-cols-fr overflow-hidden rounded-md border border-line-strong divide-x divide-line-strong">
       {options.map((o) => {
         const selected = o.value === value
         return (

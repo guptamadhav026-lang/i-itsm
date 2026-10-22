@@ -2,7 +2,7 @@ import { api, query } from './client'
 import type {
   AuditRecord, Category, CategorySuggestion, CorrelationCluster, CountRow, IncidentDetail, IncidentSummary,
   Level, LoginResponse, Notification, Overview, Priority, ScoredTechnician, SearchCriteria, Service,
-  SimilarIncident, SlaPolicy, SlaRisk, Strategy, SuggestedResolution, TechnicianWorkload, User, Role,
+  ServiceStatus, SimilarIncident, SlaPolicy, SlaRisk, Strategy, SuggestedResolution, TechnicianWorkload, User, Role,
 } from './types'
 
 // Every backend endpoint the web app uses, in one file. Each function returns a Promise of typed data.
@@ -62,6 +62,7 @@ export const catalogApi = {
   services: () => api.get<Service[]>('/api/catalog/services'),
   categories: () => api.get<Category[]>('/api/catalog/categories'),
   suggestCategory: (text: string) => api.post<CategorySuggestion | undefined>('/api/catalog/suggest-category', { text }),
+  serviceStatus: () => api.get<ServiceStatus[]>('/api/catalog/service-status'),
 }
 
 export const technicianApi = {

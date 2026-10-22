@@ -3,9 +3,9 @@ import { Link, useNavigate } from 'react-router'
 import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react'
 import type { IncidentSummary } from '../../api/types'
 import { cn } from '../../lib/cn'
-import { timeAgo } from '../../lib/format'
+import { categoryLabel, timeAgo } from '../../lib/format'
 import { Avatar, EmptyState } from '../ui/misc'
-import { AwaitingInfoBadge, DuplicateBadge, EscalationBadge, PriorityBadge, SlaBadge, StatusBadge } from './badges'
+import { AwaitingInfoBadge, DuplicateBadge, EscalationBadge, PriorityBadge, priorityBar, SlaBadge, StatusBadge } from './badges'
 import { SlaTimeLeft } from './SlaCountdown'
 import { STATUS_ORDER } from '../../api/types'
 
@@ -69,13 +69,14 @@ export function IncidentTable({ incidents, hide = [], emptyTitle = 'No incidents
       <ul className="divide-y divide-line md:hidden">
         {sorted.map((i) => (
           <li key={i.id}>
-            <button onClick={() => navigate(`/incidents/${i.id}`)} className="w-full px-4 py-3 text-left hover:bg-surface-2 cursor-pointer">
+            <button onClick={() => navigate(`/incidents/${i.id}`)} className="relative w-full px-4 py-3 text-left hover:bg-surface-2 cursor-pointer">
+              {i.priority && !done(i) && <span className={cn('absolute inset-y-2 left-0 w-[3px] rounded-r', priorityBar[i.priority])} />}
               <div className="flex items-center justify-between gap-2">
-                <span className="font-mono text-xs text-muted">{i.reference}</span>
+                <span className="font-mono text-xs text-faint">{i.reference}</span>
                 <PriorityBadge priority={i.priority} showLabel={false} />
               </div>
               <p className="mt-1 text-sm font-medium text-fg">{i.title}</p>
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
                 <StatusBadge status={i.status} />
                 <SlaBadge state={i.slaState} />
                 {i.awaitingReporterInfo && <AwaitingInfoBadge />}
@@ -88,7 +89,7 @@ export function IncidentTable({ incidents, hide = [], emptyTitle = 'No incidents
       {/* Larger screens: a sortable table */}
       <div className="hidden overflow-x-auto md:block">
         <table className="w-full text-sm">
-          <thead className="border-b border-line bg-surface-2/50 text-xs text-muted">
+          <thead className="border-b border-line text-xs text-muted">
             <tr>
               {header('reference', 'Incident')}
               {header('priority', 'Priority')}
@@ -104,9 +105,10 @@ export function IncidentTable({ incidents, hide = [], emptyTitle = 'No incidents
               <tr
                 key={i.id}
                 onClick={() => navigate(`/incidents/${i.id}`)}
-                className={cn('group cursor-pointer transition-colors hover:bg-surface-2/70', i.priority === 'P1' && !done(i) && 'bg-red-50/40 dark:bg-red-950/10')}
+                className="group cursor-pointer transition-colors hover:bg-surface-2/70"
               >
-                <td className={cn('px-4', compact ? 'py-2.5' : 'py-3')}>
+                <td className={cn('relative px-4', compact ? 'py-2.5' : 'py-3')}>
+                  {i.priority && !done(i) && <span className={cn('absolute inset-y-2 left-0 w-[3px] rounded-r', priorityBar[i.priority])} />}
                   <div className="flex items-baseline gap-2">
                     <span className="font-mono text-xs text-faint">{i.reference}</span>
                     {/* A real link, so the row also works with the keyboard and "open in new tab" */}
@@ -115,7 +117,7 @@ export function IncidentTable({ incidents, hide = [], emptyTitle = 'No incidents
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted">
                     <span>{i.service}</span>
-                    {i.category && <><span className="text-faint">·</span><span>{i.category}</span></>}
+                    {i.category && <><span className="text-faint">·</span><span>{categoryLabel(i.category)}</span></>}
                     {i.potentialDuplicate && <DuplicateBadge />}
                     {i.awaitingReporterInfo && <AwaitingInfoBadge />}
                     <EscalationBadge level={i.escalationLevel} />
@@ -126,7 +128,7 @@ export function IncidentTable({ incidents, hide = [], emptyTitle = 'No incidents
                 <td className="px-4 py-3">
                   <div className="flex flex-col items-start gap-1">
                     <SlaBadge state={i.slaState} />
-                    <SlaTimeLeft deadline={i.resolutionDeadline} done={done(i)} />
+                    {!done(i) && <SlaTimeLeft deadline={i.resolutionDeadline} done={false} />}
                   </div>
                 </td>
                 {!hide.includes('technician') && (
@@ -136,7 +138,7 @@ export function IncidentTable({ incidents, hide = [], emptyTitle = 'No incidents
                         <Avatar name={i.assignedTechnician.fullName} size="sm" />
                         <span className="text-fg">{i.assignedTechnician.fullName}</span>
                       </span>
-                    ) : <span className="text-faint">Unassigned</span>}
+                    ) : <span className="text-xs italic text-faint">Nobody yet</span>}
                   </td>
                 )}
                 {!hide.includes('reporter') && <td className="px-4 py-3 text-muted">{i.reporter.fullName}</td>}

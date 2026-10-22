@@ -59,7 +59,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               key={t.id}
               onClick={() => { t.onClick?.(); dismiss(t.id) }}
               className={cn(
-                'pointer-events-auto flex items-start gap-3 rounded border border-line-strong border-l-4 bg-surface px-3 py-2.5 shadow-md',
+                'pointer-events-auto flex items-start gap-3 rounded-md border border-line-strong border-l-4 bg-surface px-3 py-2.5 shadow-pop fade-in',
                 edge[t.kind],
                 t.onClick && 'cursor-pointer hover:border-line-strong',
               )}

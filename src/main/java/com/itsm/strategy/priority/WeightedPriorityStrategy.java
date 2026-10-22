@@ -4,6 +4,8 @@ import com.itsm.model.Incident;
 import com.itsm.model.Priority;
 import org.springframework.stereotype.Component;
 
+import java.util.Locale;
+
 /**
  * Default algorithm, impact times urgency times business criticality, adjusted for affected users:
  * <pre>
@@ -40,10 +42,10 @@ public class WeightedPriorityStrategy implements PriorityStrategy {
         double score = impact * urgency * criticality * multiplier;
         Priority priority = toPriority(score);
 
-        String explanation = String.format(
-                "Impact %s(%d) x Urgency %s(%d) x Criticality of %s(%d) x Users factor %.2f = %.1f -> %s",
-                incident.getImpact(), impact, incident.getUrgency(), urgency,
-                incident.getService().getName(), criticality, multiplier, score, priority);
+        String explanation = String.format(Locale.ENGLISH,
+                "impact %s (%d) x urgency %s (%d) x %s criticality (%d) x %s for %d affected = %.1f, which is %s",
+                lower(incident.getImpact()), impact, lower(incident.getUrgency()), urgency,
+                incident.getService().getName(), criticality, trim(multiplier), incident.getAffectedUsers(), score, priority);
         return new PriorityAssessment(priority, score, explanation);
     }
 
@@ -58,6 +60,15 @@ public class WeightedPriorityStrategy implements PriorityStrategy {
             return 1.1;
         }
         return 1.0;
+    }
+
+    private static String lower(Enum<?> level) {
+        return level.name().toLowerCase(Locale.ROOT);
+    }
+
+    /** 1.25 stays 1.25, 1.0 becomes 1. */
+    private static String trim(double multiplier) {
+        return multiplier == Math.rint(multiplier) ? String.valueOf((int) multiplier) : String.valueOf(multiplier);
     }
 
     static Priority toPriority(double score) {

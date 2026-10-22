@@ -101,14 +101,14 @@ export function timeAgo(iso: string | null | undefined, now: number = Date.now()
   return days === 1 ? 'yesterday' : `${days} days ago`
 }
 
-/** Minutes as "45 min", "2 h 05 min", "1 d 3 h". */
+/** Minutes as "45 min", "2 h 05 min", "8 h", "1 d 3 h", "1 d". */
 export function formatMinutes(total: number): string {
   const m = Math.abs(Math.round(total))
   if (m < 60) return `${m} min`
   const h = Math.floor(m / 60)
-  if (h < 24) return `${h} h ${String(m % 60).padStart(2, '0')} min`
+  if (h < 24) return m % 60 === 0 ? `${h} h` : `${h} h ${String(m % 60).padStart(2, '0')} min`
   const d = Math.floor(h / 24)
-  return `${d} d ${h % 24} h`
+  return h % 24 === 0 ? `${d} d` : `${d} d ${h % 24} h`
 }
 
 /** An average duration: "under 1 min" reads better than "0 min". */
@@ -134,4 +134,48 @@ export function initials(name: string): string {
 
 export function humanize(value: string): string {
   return value.charAt(0) + value.slice(1).toLowerCase().replace(/_/g, ' ')
+}
+
+/** Category names are stored as codes ("AUTHENTICATION"); people read "Authentication". */
+export function categoryLabel(name: string | null | undefined): string {
+  if (!name) return '-'
+  if (name === 'EMAIL') return 'E-mail'
+  return humanize(name)
+}
+
+/** Readable names for the strategy codes the backend uses. */
+export const STRATEGY_LABEL: Record<string, string> = {
+  SMART: 'Smart',
+  SKILL_BASED: 'Skill based',
+  LOAD_BASED: 'Least busy',
+  ROUND_ROBIN: 'Round robin',
+  WEIGHTED: 'Weighted score',
+  ITIL_MATRIX: 'ITIL matrix',
+}
+
+export function strategyLabel(name: string): string {
+  return STRATEGY_LABEL[name] ?? humanize(name)
+}
+
+/** "Good morning" before noon, "Good afternoon" until six, then "Good evening". */
+export function greeting(date: Date = new Date()): string {
+  const h = date.getHours()
+  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
+}
+
+const longDay = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long' })
+
+/** "Wednesday 22 October" */
+export function formatLongDay(date: Date = new Date()): string {
+  return longDay.format(date)
+}
+
+/** "Today", "Yesterday" or a date, used to group lists by day. */
+export function dayLabel(iso: string, now: Date = new Date()): string {
+  const d = new Date(iso)
+  const start = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+  const days = Math.round((start(now) - start(d)) / 86_400_000)
+  if (days === 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  return dateOnly.format(d)
 }

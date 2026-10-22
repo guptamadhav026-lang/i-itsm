@@ -5,7 +5,7 @@ import { Card, CardHeader } from '../../components/ui/Card'
 import { ErrorState, PageHeader, PageLoader } from '../../components/ui/misc'
 import { useToast } from '../../components/ui/Toast'
 import { cn } from '../../lib/cn'
-import { humanize } from '../../lib/format'
+import { strategyLabel } from '../../lib/format'
 
 /**
  * The Strategy pattern, live: pick which algorithm assigns technicians and which calculates priority.
@@ -19,11 +19,11 @@ export function StrategiesPage() {
 
   const setAssignment = useMutation({
     mutationFn: adminApi.setAssignmentStrategy,
-    onSuccess: (list) => { queryClient.setQueryData(['admin', 'strategies', 'assignment'], list); toast.success(`Assignment strategy: ${humanize(list.find((s) => s.active)!.name)}`) },
+    onSuccess: (list) => { queryClient.setQueryData(['admin', 'strategies', 'assignment'], list); toast.success(`Assignment strategy: ${strategyLabel(list.find((s) => s.active)!.name)}`) },
   })
   const setPriority = useMutation({
     mutationFn: adminApi.setPriorityStrategy,
-    onSuccess: (list) => { queryClient.setQueryData(['admin', 'strategies', 'priority'], list); toast.success(`Priority strategy: ${humanize(list.find((s) => s.active)!.name)}`) },
+    onSuccess: (list) => { queryClient.setQueryData(['admin', 'strategies', 'priority'], list); toast.success(`Priority strategy: ${strategyLabel(list.find((s) => s.active)!.name)}`) },
   })
 
   return (
@@ -57,7 +57,7 @@ function Option({ strategy, onSelect, busy }: { strategy: Strategy; onSelect: ()
       disabled={busy || strategy.active}
       aria-pressed={strategy.active}
       className={cn(
-        'flex w-full items-start gap-3 rounded border p-3 text-left cursor-pointer disabled:cursor-default',
+        'flex w-full items-start gap-3 rounded-md border p-3 text-left cursor-pointer disabled:cursor-default',
         strategy.active ? 'border-brand bg-brand-soft' : 'border-line hover:bg-surface-2',
       )}
     >
@@ -66,7 +66,7 @@ function Option({ strategy, onSelect, busy }: { strategy: Strategy; onSelect: ()
       </span>
       <span>
         <span className="flex items-center gap-2 text-sm font-semibold text-fg">
-          {humanize(strategy.name)}
+          {strategyLabel(strategy.name)}
           <span className="font-mono text-[11px] font-normal text-faint">{strategy.name}</span>
         </span>
         <span className="mt-0.5 block text-sm text-muted">{strategy.description}</span>

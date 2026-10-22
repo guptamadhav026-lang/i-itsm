@@ -23,7 +23,7 @@ public record IncidentDetailDto(
         Instant verifiedAt, Instant closedAt,
         Instant responseDeadline, Instant resolutionDeadline, SlaState slaState, long minutesToResolutionDeadline,
         boolean responseBreached, boolean resolutionBreached, EscalationLevel escalationLevel,
-        String potentialDuplicateOf, String resolution, boolean awaitingReporterInfo,
+        String potentialDuplicateOf, Long potentialDuplicateOfId, String resolution, boolean awaitingReporterInfo,
         Integer feedbackRating, String feedbackComment,
         List<NoteDto> notes) {
 
@@ -40,6 +40,7 @@ public record IncidentDetailDto(
                 i.getResponseDeadline(), i.getResolutionDeadline(), slaState, minutesLeft,
                 i.isResponseBreached(), i.isResolutionBreached(), i.getEscalationLevel(),
                 i.getPotentialDuplicateOf() == null ? null : i.getPotentialDuplicateOf().getReference(),
+                i.getPotentialDuplicateOf() == null ? null : i.getPotentialDuplicateOf().getId(),
                 i.getResolution(), i.isAwaitingReporterInfo(),
                 i.getFeedbackRating(), i.getFeedbackComment(),
                 i.getNotes().stream().map(NoteDto::from).toList());

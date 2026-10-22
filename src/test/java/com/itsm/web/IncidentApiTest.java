@@ -206,6 +206,17 @@ class IncidentApiTest {
     }
 
     @Test
+    @DisplayName("TC37 Every user sees which services already have open problems, but not the incidents")
+    void serviceStatus() throws Exception {
+        mvc.perform(get("/api/catalog/service-status").header("Authorization", login("priya")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].serviceName", is("Payment Gateway")))
+                .andExpect(jsonPath("$[0].openIncidents", is(2)))
+                .andExpect(jsonPath("$[0].highestPriority", is("P1")))
+                .andExpect(jsonPath("$[0].title").doesNotExist());
+    }
+
+    @Test
     @DisplayName("TC33 The live-update stream needs a login and then stays open as text/event-stream")
     void liveStream() throws Exception {
         mvc.perform(get("/api/live")).andExpect(status().isUnauthorized());

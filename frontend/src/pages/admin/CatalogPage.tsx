@@ -11,6 +11,7 @@ import { Modal } from '../../components/ui/Modal'
 import { ErrorState, PageHeader, PageLoader, Tabs } from '../../components/ui/misc'
 import { useToast } from '../../components/ui/Toast'
 import { cn } from '../../lib/cn'
+import { categoryLabel } from '../../lib/format'
 
 type TabKey = 'services' | 'categories'
 
@@ -55,7 +56,7 @@ export function CatalogPage() {
             {[...(categories.data ?? [])].sort((a, b) => a.name.localeCompare(b.name)).map((c) => (
               <li key={c.id} className={cn('flex items-start gap-4 px-5 py-3.5', !c.active && 'opacity-60')}>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-fg">{c.name} <span className="font-normal text-muted">· {c.description}</span></p>
+                  <p className="text-sm font-medium text-fg">{categoryLabel(c.name)} <span className="font-mono text-[11px] font-normal text-faint">{c.name}</span> <span className="font-normal text-muted">· {c.description}</span></p>
                   <div className="mt-1.5 flex flex-wrap gap-1">
                     {(c.keywords ?? '').split(',').map((k) => k.trim()).filter(Boolean).map((k) => (
                       <span key={k} className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-muted ring-1 ring-line">{k}</span>

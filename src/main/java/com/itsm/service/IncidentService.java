@@ -114,7 +114,7 @@ public class IncidentService {
         Incident incident = incidents.save(new Incident(request.title(), request.description(), reporter, service,
                 request.impact(), request.urgency(), request.affectedUsers(), now()));
         publish(IncidentEventType.CREATED, incident, reporter.getUsername(), null,
-                "Incident created by " + reporter.getUsername() + ": " + incident.getTitle());
+                "Reported by " + reporter.getFullName() + ": " + incident.getTitle());
 
         // 2-3. Classify (chosen category, or automatic suggestion from the text)
         classify(incident, request.categoryId());
@@ -123,7 +123,7 @@ public class IncidentService {
         PriorityAssessment assessment = priorityStrategies.getActive().assess(incident);
         incident.applyPriority(assessment.priority(), assessment.score(), assessment.explanation());
         publish(IncidentEventType.PRIORITY_CALCULATED, incident, IncidentEvent.SYSTEM, incident.getStatus(),
-                "Priority calculated as " + assessment.priority() + " - " + assessment.explanation());
+                "Priority " + assessment.priority() + ": " + assessment.explanation());
 
         // 6. Determine the applicable SLA
         slaService.applyDeadlines(incident);
@@ -159,22 +159,22 @@ public class IncidentService {
         if (categoryId != null) {
             category = categories.findById(categoryId).filter(Category::isActive)
                     .orElseThrow(() -> new ResourceNotFoundException("Category " + categoryId + " not found"));
-            how = "chosen by reporter";
+            how = "chosen by the reporter";
         } else {
             Optional<CategorySuggestion> suggestion = suggestCategory(incident.getTitle() + " " + incident.getDescription());
             if (suggestion.isPresent()) {
                 category = categories.getReferenceById(suggestion.get().categoryId());
-                how = "auto-detected from keywords " + suggestion.get().matchedKeywords();
+                how = "found the words " + String.join(", ", suggestion.get().matchedKeywords());
             } else {
                 category = categories.findByNameIgnoreCase("GENERAL")
                         .orElseThrow(() -> new InvalidInputException("Please choose a category for this incident"));
-                how = "no keywords matched, using GENERAL";
+                how = "no keywords matched";
             }
         }
         IncidentStatus before = incident.getStatus();
         incident.classify(category);
         publish(IncidentEventType.CLASSIFIED, incident, IncidentEvent.SYSTEM, before,
-                "Incident classified as " + category.getName() + " (" + how + ")");
+                "Category " + category.getName() + " (" + how + ")");
     }
 
     private void detectDuplicates(Incident incident) {
@@ -185,8 +185,8 @@ public class IncidentService {
             SimilarIncident best = similar.get(0);
             incident.markPotentialDuplicateOf(incidents.getReferenceById(best.incidentId()));
             publish(IncidentEventType.DUPLICATE_DETECTED, incident, IncidentEvent.SYSTEM, incident.getStatus(),
-                    "Possible duplicate of " + best.reference() + " \"" + best.title() + "\" (similarity "
-                            + best.score() + ")");
+                    "Looks like " + best.reference() + " \"" + best.title() + "\" ("
+                            + Math.round(best.score() * 100) + "% similar)");
         }
     }
 
@@ -199,8 +199,8 @@ public class IncidentService {
         }
         IncidentStatus before = incident.getStatus();
         incident.assignTo(chosen.get(), now());
-        publish(IncidentEventType.ASSIGNED, incident, actor, before, "Assigned to " + chosen.get().getUsername()
-                + " (" + chosen.get().getFullName() + ") by " + strategy.name() + " strategy");
+        publish(IncidentEventType.ASSIGNED, incident, actor, before, "Assigned to " + chosen.get().getFullName()
+                + " by the " + strategy.name().toLowerCase(Locale.ROOT).replace('_', ' ') + " strategy");
         return true;
     }
 
@@ -243,18 +243,17 @@ public class IncidentService {
         Technician technician = technicians.findById(technicianId)
                 .orElseThrow(() -> new ResourceNotFoundException("Technician " + technicianId + " not found"));
         if (!technician.isActive() || !technician.isAvailable()) {
-            throw new TechnicianUnavailableException(technician.getUsername() + " is not available");
+            throw new TechnicianUnavailableException(technician.getFullName() + " is not available right now");
         }
         long active = incidents.countByAssignedTechnicianAndStatusIn(technician, IncidentStatus.ACTIVE_WORK);
         if (active >= technician.getMaxActiveIncidents()) {
-            throw new WorkloadExceededException(technician.getUsername() + " already has " + active
+            throw new WorkloadExceededException(technician.getFullName() + " already has " + active
                     + " active incidents (limit " + technician.getMaxActiveIncidents() + ")");
         }
         IncidentStatus before = incident.getStatus();
         incident.assignTo(technician, now());
         publish(IncidentEventType.ASSIGNED, incident, admin.getUsername(), before,
-                "Assigned to " + technician.getUsername() + " (" + technician.getFullName() + ") by "
-                        + admin.getUsername());
+                "Assigned to " + technician.getFullName() + " by " + admin.getFullName());
         return incident;
     }
 
@@ -277,10 +276,11 @@ public class IncidentService {
         if (!incident.isResponseBreached() && incident.getAcknowledgedAt().isAfter(incident.getResponseDeadline())) {
             incident.markResponseBreached();
             publish(IncidentEventType.SLA_VIOLATED, incident, IncidentEvent.SYSTEM, incident.getStatus(),
-                    "Response SLA violated: acknowledged after the deadline " + incident.getResponseDeadline());
+                    "Acknowledged after the deadline (" + TimeText.of(incident.getResponseDeadline(), clock)
+                            + "), so the response SLA was missed");
         }
         publish(IncidentEventType.ACKNOWLEDGED, incident, user.getUsername(), before,
-                "Acknowledged by " + user.getUsername());
+                "Acknowledged by " + user.getFullName());
         return incident;
     }
 
@@ -290,7 +290,7 @@ public class IncidentService {
         IncidentStatus before = incident.getStatus();
         incident.startInvestigation();
         publish(IncidentEventType.INVESTIGATION_STARTED, incident, user.getUsername(), before,
-                "Investigation started by " + user.getUsername());
+                "Investigation started by " + user.getFullName());
         return incident;
     }
 
@@ -314,10 +314,11 @@ public class IncidentService {
         if (!incident.isResolutionBreached() && incident.getResolvedAt().isAfter(incident.getResolutionDeadline())) {
             incident.markResolutionBreached();
             publish(IncidentEventType.SLA_VIOLATED, incident, IncidentEvent.SYSTEM, incident.getStatus(),
-                    "Resolution SLA violated: resolved after the deadline " + incident.getResolutionDeadline());
+                    "Resolved after the deadline (" + TimeText.of(incident.getResolutionDeadline(), clock)
+                            + "), so the resolution SLA was missed");
         }
         publish(IncidentEventType.RESOLVED, incident, user.getUsername(), before,
-                "Resolved by " + user.getUsername() + ": " + incident.getResolution());
+                "Resolved by " + user.getFullName() + ": " + incident.getResolution());
         return incident;
     }
 
@@ -333,7 +334,7 @@ public class IncidentService {
         if (assessment.priority() != oldPriority) {
             slaService.applyDeadlines(incident);
             publish(IncidentEventType.PRIORITY_CHANGED, incident, user.getUsername(), incident.getStatus(),
-                    "Priority changed " + oldPriority + " -> " + assessment.priority() + " - "
+                    "Priority changed from " + oldPriority + " to " + assessment.priority() + ": "
                             + assessment.explanation());
         }
         return incident;
@@ -359,7 +360,7 @@ public class IncidentService {
         incident.reopen();
         incident.addNote(user, NoteType.COMMENT, "Reopened: " + reason, now());
         publish(IncidentEventType.REOPENED, incident, user.getUsername(), before,
-                "Reopened by " + user.getUsername() + ": " + reason);
+                "Reopened by " + user.getFullName() + ": " + reason);
         return incident;
     }
 
@@ -369,7 +370,7 @@ public class IncidentService {
         IncidentStatus before = incident.getStatus();
         incident.verify(now());
         publish(IncidentEventType.VERIFIED, incident, user.getUsername(), before,
-                "Resolution verified by " + user.getUsername());
+                "Fix confirmed by " + user.getFullName());
         return incident;
     }
 
@@ -379,7 +380,7 @@ public class IncidentService {
         IncidentStatus before = incident.getStatus();
         incident.close(now());
         publish(IncidentEventType.CLOSED, incident, user.getUsername(), before,
-                "Incident closed by " + user.getUsername());
+                "Closed by " + user.getFullName());
         return incident;
     }
 
@@ -430,7 +431,7 @@ public class IncidentService {
     private Incident addNote(Incident incident, User user, NoteType type, String text, IncidentEventType eventType) {
         IncidentNote note = incident.addNote(user, type, text, now());
         publish(eventType, incident, user.getUsername(), incident.getStatus(),
-                type.label() + " from " + user.getUsername() + ": " + note.getText());
+                type.label() + " from " + user.getFullName() + ": " + note.getText());
         return incident;
     }
 

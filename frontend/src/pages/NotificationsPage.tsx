@@ -6,7 +6,8 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { EmptyState, ErrorState, PageHeader, PageLoader, Tabs } from '../components/ui/misc'
 import { cn } from '../lib/cn'
-import { formatDateTime, timeAgo } from '../lib/format'
+import { dayLabel, formatDateTime, formatTime, timeAgo } from '../lib/format'
+import type { Notification } from '../api/types'
 
 type Filter = 'unread' | 'all' | 'email'
 
@@ -52,30 +53,50 @@ export function NotificationsPage() {
           : isLoading ? <PageLoader />
             : shown.length === 0 ? <EmptyState title={filter === 'unread' ? 'No unread notifications' : 'No notifications'} />
               : (
-                <ul className="divide-y divide-line">
-                  {shown.map((n) => (
-                    <li key={n.id}>
-                      <button
-                        onClick={() => {
-                          if (!n.read && n.channel === 'IN_APP') markRead.mutate([n.id])
-                          if (n.incidentId) navigate(`/incidents/${n.incidentId}`)
-                        }}
-                        className={cn('flex w-full items-start gap-4 px-4 py-3 text-left hover:bg-surface-2 cursor-pointer', !n.read && n.channel === 'IN_APP' && 'bg-brand-soft/30')}
-                      >
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-fg">{n.subject}</span>
-                            {!n.read && n.channel === 'IN_APP' && <span className="size-2 rounded-full bg-brand" />}
-                          </span>
-                          <span className="mt-0.5 block text-sm text-muted">{n.message}</span>
-                        </span>
-                        <span className="shrink-0 text-right text-xs text-faint" title={formatDateTime(n.createdAt)}>{timeAgo(n.createdAt)}</span>
-                      </button>
-                    </li>
+                <div>
+                  {groupByDay(shown).map(([day, items]) => (
+                    <section key={day}>
+                      <h2 className="sticky top-0 border-y border-line bg-surface-2 px-4 py-1.5 text-xs font-medium text-muted first:border-t-0">{day}</h2>
+                      <ul className="divide-y divide-line">
+                        {items.map((n) => {
+                          const isNew = !n.read && n.channel === 'IN_APP'
+                          return (
+                            <li key={n.id}>
+                              <button
+                                onClick={() => {
+                                  if (isNew) markRead.mutate([n.id])
+                                  if (n.incidentId) navigate(`/incidents/${n.incidentId}`)
+                                }}
+                                className={cn('relative flex w-full items-start gap-4 px-4 py-3 text-left hover:bg-surface-2 cursor-pointer', isNew && 'bg-brand-soft/40')}
+                              >
+                                {isNew && <span className="absolute inset-y-0 left-0 w-0.5 bg-brand" />}
+                                <span className="min-w-0 flex-1">
+                                  <span className={cn('block text-sm text-fg', isNew ? 'font-semibold' : 'font-medium')}>{n.subject}</span>
+                                  <span className="mt-0.5 block text-sm text-muted">{n.message}</span>
+                                </span>
+                                <span className="tabular shrink-0 text-right text-xs text-faint" title={formatDateTime(n.createdAt)}>
+                                  {day === 'Today' ? timeAgo(n.createdAt) : formatTime(n.createdAt)}
+                                </span>
+                              </button>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </section>
                   ))}
-                </ul>
+                </div>
               )}
       </Card>
     </div>
   )
+}
+
+/** Newest first, split into "Today", "Yesterday" and older dates. */
+function groupByDay(items: Notification[]): [string, Notification[]][] {
+  const groups = new Map<string, Notification[]>()
+  for (const n of items) {
+    const day = dayLabel(n.createdAt)
+    groups.set(day, [...(groups.get(day) ?? []), n])
+  }
+  return [...groups.entries()]
 }

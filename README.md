@@ -16,7 +16,7 @@ in `model/state`.
 
 - Three roles with their own screens: employee, technician, administrator. Login with JWT tokens, passwords stored with BCrypt.
 - Priority from impact, urgency, business criticality of the service and number of affected users. Two priority strategies (weighted score, ITIL matrix) that the admin can switch at runtime.
-- Four assignment strategies: smart (skills, experience, past work on the service, workload), skill based, load based, round robin.
+- Four assignment strategies: smart (skills, experience, past work on the service, workload), skill based, least busy (load based), round robin.
 - SLA response and resolution deadlines per priority, a warning before the deadline, breach detection, and escalation of unacknowledged P1/P2 incidents (team lead, then system administrator, then IT manager).
 - Notifications in the app and by e-mail (e-mail is simulated: it is written to the log and shown on the Notifications page).
 - Full audit log of every change, search with 10 filters, management reports and CSV export.
@@ -73,8 +73,8 @@ All demo accounts use the password `password123`.
 ## Tests
 
 ```bash
-mvnw.cmd test             # 36 backend tests
-cd frontend && npm test   # 19 frontend tests
+mvnw.cmd test             # 37 backend tests
+cd frontend && npm test   # 20 frontend tests
 ```
 
 The test cases are listed in [docs/TEST_CASES.md](docs/TEST_CASES.md), along with three workflows that were

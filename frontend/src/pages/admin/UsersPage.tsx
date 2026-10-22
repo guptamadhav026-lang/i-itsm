@@ -12,6 +12,7 @@ import { Field, Input, Select, Toggle } from '../../components/ui/Field'
 import { Modal } from '../../components/ui/Modal'
 import { Avatar, ErrorState, PageHeader, PageLoader, Tabs } from '../../components/ui/misc'
 import { useToast } from '../../components/ui/Toast'
+import { categoryLabel } from '../../lib/format'
 
 const roleBadge: Record<Role, { tone: Tone; label: string }> = {
   EMPLOYEE: { tone: 'gray', label: 'Employee' },
@@ -96,7 +97,7 @@ export function UsersPage() {
                       {u.role === 'ADMIN' && (u.itManager ? 'IT manager (top of escalation chain)' : 'System administrator')}
                       {u.role === 'TECHNICIAN' && (
                         <span className="flex flex-wrap items-center gap-1.5">
-                          {u.skills?.map((s) => <span key={s} className="rounded bg-surface-2 px-1.5 py-0.5 ring-1 ring-line">{s}</span>)}
+                          {u.skills?.map((s) => <span key={s} className="rounded bg-surface-2 px-1.5 py-0.5 ring-1 ring-line">{categoryLabel(s)}</span>)}
                           <span>· {u.experienceYears} yrs · max {u.maxActiveIncidents}</span>
                           {u.teamLead && <Badge tone="amber">Team lead</Badge>}
                           {!u.available && <Badge>Unavailable</Badge>}
@@ -134,7 +135,7 @@ function SkillPicker({ value, onChange }: { value: string[]; onChange: (v: strin
         return (
           <button key={s} type="button" onClick={() => onChange(on ? value.filter((x) => x !== s) : [...value, s])}
             className={`rounded-md px-2 py-1 text-xs font-medium ring-1 transition cursor-pointer ${on ? 'bg-brand text-brand-fg ring-brand' : 'bg-surface text-muted ring-line hover:text-fg'}`}>
-            {s}
+            {categoryLabel(s)}
           </button>
         )
       })}

@@ -10,7 +10,7 @@ import { Card } from '../components/ui/Card'
 import { Input, Select } from '../components/ui/Field'
 import { ErrorState, PageHeader, Skeleton } from '../components/ui/misc'
 import { IncidentTable } from '../components/incident/IncidentTable'
-import { PRIORITY_LABEL, SLA_LABEL, STATUS_LABEL } from '../lib/format'
+import { categoryLabel, PRIORITY_LABEL, SLA_LABEL, STATUS_LABEL } from '../lib/format'
 
 const FILTER_KEYS = ['keyword', 'reference', 'status', 'priority', 'slaState', 'serviceId', 'categoryId', 'technicianId', 'createdFrom', 'createdTo'] as const
 
@@ -90,7 +90,7 @@ export function IncidentsPage() {
           </Select>
           <Select aria-label="Category" value={params.get('categoryId') ?? ''} onChange={(e) => set('categoryId', e.target.value)}>
             <option value="">Any category</option>
-            {categories.data?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {categories.data?.map((c) => <option key={c.id} value={c.id}>{categoryLabel(c.name)}</option>)}
           </Select>
           {user.role === 'ADMIN' && (
             <Select aria-label="Technician" value={params.get('technicianId') ?? ''} onChange={(e) => set('technicianId', e.target.value)}>

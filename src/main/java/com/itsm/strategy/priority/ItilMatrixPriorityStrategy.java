@@ -4,6 +4,8 @@ import com.itsm.model.Incident;
 import com.itsm.model.Priority;
 import org.springframework.stereotype.Component;
 
+import java.util.Locale;
+
 /**
  * Alternative algorithm: the classic ITIL impact/urgency matrix.
  * It ignores the service and the number of users and only adds impact + urgency (2..8).
@@ -35,8 +37,9 @@ public class ItilMatrixPriorityStrategy implements PriorityStrategy {
         } else {
             priority = Priority.P4;
         }
-        String explanation = String.format("ITIL matrix: impact %s + urgency %s = %d -> %s",
-                incident.getImpact(), incident.getUrgency(), sum, priority);
+        String explanation = String.format("ITIL matrix: impact %s (%d) + urgency %s (%d) = %d, which is %s",
+                incident.getImpact().name().toLowerCase(Locale.ROOT), incident.getImpact().getWeight(),
+                incident.getUrgency().name().toLowerCase(Locale.ROOT), incident.getUrgency().getWeight(), sum, priority);
         return new PriorityAssessment(priority, sum, explanation);
     }
 }

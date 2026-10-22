@@ -35,7 +35,7 @@ export function Modal({ open, onClose, title, description, children, footer, siz
         role="dialog"
         aria-modal="true"
         className={cn(
-          'relative w-full rounded-md border border-line-strong bg-surface shadow-md',
+          'relative w-full rounded-lg border border-line-strong bg-surface shadow-pop fade-in',
           size === 'lg' ? 'max-w-2xl' : 'max-w-lg',
         )}
       >
@@ -49,7 +49,7 @@ export function Modal({ open, onClose, title, description, children, footer, siz
           </button>
         </div>
         <div className="px-5 py-4">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t border-line bg-surface-2 px-5 py-3 rounded-b-md">{footer}</div>}
+        {footer && <div className="flex justify-end gap-2 border-t border-line bg-surface-2 px-5 py-3 rounded-b-lg">{footer}</div>}
       </div>
     </div>,
     document.body,

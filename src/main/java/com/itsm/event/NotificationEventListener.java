@@ -44,7 +44,7 @@ public class NotificationEventListener implements IncidentEventListener {
                 if (important) {
                     recipients.addAll(administrators.findByActiveTrue());
                 }
-                subject = ref + " created: " + incident.getTitle();
+                subject = ref + " reported: " + incident.getTitle();
             }
             case ASSIGNED -> {
                 recipients.add(incident.getAssignedTechnician());
@@ -58,16 +58,16 @@ public class NotificationEventListener implements IncidentEventListener {
             }
             case ACKNOWLEDGED, INVESTIGATION_STARTED, INFO_REQUESTED, RESOLVED -> {
                 recipients.add(incident.getReporter());
-                subject = ref + " " + readable(event.type());
+                subject = ref + subjectFor(event.type());
             }
             case INFO_PROVIDED, REOPENED, FEEDBACK_GIVEN -> {
                 recipients.add(incident.getAssignedTechnician());
-                subject = ref + " " + readable(event.type());
+                subject = ref + subjectFor(event.type());
             }
             case VERIFIED, CLOSED -> {
                 recipients.add(incident.getReporter());
                 recipients.add(incident.getAssignedTechnician());
-                subject = ref + " " + readable(event.type());
+                subject = ref + subjectFor(event.type());
             }
             case DUPLICATE_DETECTED -> {
                 recipients.addAll(administrators.findByActiveTrue());
@@ -78,12 +78,12 @@ public class NotificationEventListener implements IncidentEventListener {
                 recipients.add(incident.getAssignedTechnician());
                 recipients.addAll(administrators.findByActiveTrue());
                 subject = ref + (event.type() == IncidentEventType.SLA_WARNING
-                        ? " is close to its SLA deadline" : " has violated its SLA");
+                        ? " is close to its SLA deadline" : " missed its SLA");
                 important = true;
             }
             case ESCALATED -> {
                 recipients.addAll(escalationTargets(incident.getEscalationLevel()));
-                subject = ref + " escalated to " + incident.getEscalationLevel();
+                subject = ref + " escalated to " + incident.getEscalationLevel().getLabel();
                 important = true;
             }
             default -> {
@@ -108,7 +108,18 @@ public class NotificationEventListener implements IncidentEventListener {
         return targets.isEmpty() ? administrators.findByActiveTrue() : targets;
     }
 
-    private static String readable(IncidentEventType type) {
-        return type.name().toLowerCase().replace('_', ' ');
+    private static String subjectFor(IncidentEventType type) {
+        return switch (type) {
+            case ACKNOWLEDGED -> " has been picked up by a technician";
+            case INVESTIGATION_STARTED -> ": investigation started";
+            case INFO_REQUESTED -> ": the technician has a question for you";
+            case RESOLVED -> " is resolved, please check the fix";
+            case INFO_PROVIDED -> ": the reporter answered your question";
+            case REOPENED -> " was reopened by the reporter";
+            case FEEDBACK_GIVEN -> ": the reporter left feedback";
+            case VERIFIED -> ": the reporter confirmed the fix";
+            case CLOSED -> " is closed";
+            default -> " " + type.name().toLowerCase().replace('_', ' ');
+        };
     }
 }

@@ -6,38 +6,57 @@
 /*
  * Design tokens. Components use names like bg-surface or text-muted instead of raw colours,
  * so light and dark mode are switched in this one place.
+ * The page is a warm off-white, cards are white, and the side menu is a dark petrol colour.
  */
 :root {
-  --bg: #f4f4f2;
+  --bg: #f5f4f0;
   --surface: #ffffff;
-  --surface-2: #f0f0ed;
-  --line: #dcdcd6;
-  --line-strong: #c4c4bc;
-  --fg: #1d2125;
-  --muted: #555d65;
-  --faint: #868e96;
+  --surface-2: #f2f1ec;
+  --line: #e3e1da;
+  --line-strong: #cdcac1;
+  --fg: #1b1f23;
+  --muted: #555c63;
+  --faint: #878d93;
   --brand: #0f5e66;
   --brand-hover: #0b4a51;
-  --brand-soft: #e3eeef;
+  --brand-soft: #e1eded;
   --brand-fg: #ffffff;
   --ring: #2b8792;
+
+  --side: #132729;
+  --side-2: #1c3537;
+  --side-line: #243e40;
+  --side-fg: #e4eeee;
+  --side-muted: #93abac;
+
+  --shadow-card: 0 1px 2px rgb(20 30 32 / 0.04);
+  --shadow-pop: 0 8px 24px rgb(20 30 32 / 0.12), 0 1px 3px rgb(20 30 32 / 0.08);
   color-scheme: light;
 }
 
 .dark {
-  --bg: #131516;
-  --surface: #1a1d1f;
-  --surface-2: #212528;
-  --line: #2d3236;
-  --line-strong: #3c4247;
-  --fg: #e4e6e8;
-  --muted: #a1a8ae;
-  --faint: #737b82;
+  --bg: #111416;
+  --surface: #181c1e;
+  --surface-2: #1f2427;
+  --line: #2a3033;
+  --line-strong: #394145;
+  --fg: #e4e7e9;
+  --muted: #a2aab0;
+  --faint: #737b81;
   --brand: #5bb4ba;
   --brand-hover: #7cc5ca;
-  --brand-soft: #16302f;
-  --brand-fg: #0e1112;
+  --brand-soft: #163130;
+  --brand-fg: #0d1112;
   --ring: #5bb4ba;
+
+  --side: #0c1517;
+  --side-2: #152225;
+  --side-line: #1b2a2c;
+  --side-fg: #dce6e6;
+  --side-muted: #81979a;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.25);
+  --shadow-pop: 0 8px 24px rgb(0 0 0 / 0.45), 0 1px 3px rgb(0 0 0 / 0.3);
   color-scheme: dark;
 }
 
@@ -55,6 +74,13 @@
   --color-brand-soft: var(--brand-soft);
   --color-brand-fg: var(--brand-fg);
   --color-ring: var(--ring);
+  --color-side: var(--side);
+  --color-side-2: var(--side-2);
+  --color-side-line: var(--side-line);
+  --color-side-fg: var(--side-fg);
+  --color-side-muted: var(--side-muted);
+  --shadow-card: var(--shadow-card);
+  --shadow-pop: var(--shadow-pop);
   --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", Consolas, ui-monospace, monospace;
 }
@@ -72,6 +98,12 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+h1,
+h2,
+h3 {
+  letter-spacing: -0.01em;
+}
+
 /* Tabular numbers for timers and counters so digits don't jump around */
 .tabular {
   font-variant-numeric: tabular-nums;
@@ -85,4 +117,28 @@ body {
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
+}
+
+/* Keyboard hint like "/" next to the search box */
+kbd {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--line-strong);
+  color: var(--faint);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .fade-in {
+    animation: fade-in 160ms ease-out;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
 }

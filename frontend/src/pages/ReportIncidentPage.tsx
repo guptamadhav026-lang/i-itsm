@@ -10,7 +10,8 @@ import { Field, Input, Segmented, Select, Textarea } from '../components/ui/Fiel
 import { PageHeader } from '../components/ui/misc'
 import { useToast } from '../components/ui/Toast'
 import { PriorityBadge } from '../components/incident/badges'
-import { formatDateTime, formatMinutes, LEVEL_LABEL, PRIORITY_LABEL } from '../lib/format'
+import { useServiceStatus } from '../components/incident/ServiceStatus'
+import { categoryLabel, formatDateTime, formatMinutes, LEVEL_LABEL, PRIORITY_LABEL } from '../lib/format'
 
 const levelWeight: Record<Level, number> = { LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4 }
 
@@ -37,6 +38,7 @@ export function ReportIncidentPage() {
   const queryClient = useQueryClient()
   const services = useQuery({ queryKey: ['catalog', 'services'], queryFn: catalogApi.services })
   const categories = useQuery({ queryKey: ['catalog', 'categories'], queryFn: catalogApi.categories })
+  const serviceStatus = useServiceStatus()
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -93,6 +95,7 @@ export function ReportIncidentPage() {
   if (created) return <ReportedSummary incident={created} onAnother={() => { setCreated(null); setTitle(''); setDescription(''); setCategoryId('') }} />
 
   const suggested = suggestion.data
+  const known = serviceStatus.data?.find((x) => String(x.serviceId) === serviceId)
   return (
     <div>
       <PageHeader title="Report an incident" subtitle="Describe the problem. Priority, SLA deadlines and the technician are worked out after you submit." />
@@ -116,11 +119,19 @@ export function ReportIncidentPage() {
               </Field>
               <Field label="Category" htmlFor="category" hint={categoryId ? undefined : 'Leave on Automatic to have it picked from your text'}>
                 <Select id="category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-                  <option value="">Automatic{suggested ? ` (${suggested.categoryName})` : ''}</option>
-                  {categories.data?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  <option value="">Automatic{suggested ? ` (${categoryLabel(suggested.categoryName)})` : ''}</option>
+                  {categories.data?.map((c) => <option key={c.id} value={c.id}>{categoryLabel(c.name)}</option>)}
                 </Select>
               </Field>
             </div>
+
+            {known && (
+              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                {known.serviceName} already has {known.openIncidents} open {known.openIncidents === 1 ? 'incident' : 'incidents'}
+                {known.highestPriority && ` (highest ${known.highestPriority})`}. If yours is the same problem, it is already being worked on.
+                A new report is still fine if it is something different.
+              </p>
+            )}
 
             <div className="grid gap-5 sm:grid-cols-2">
               <Field label="Impact" hint="How much of the business is affected?">
@@ -164,9 +175,9 @@ export function ReportIncidentPage() {
             <CardBody className="space-y-4">
               <PreviewRow label="Category">
                 {categoryId
-                  ? <span className="font-medium text-fg">{categories.data?.find((c) => String(c.id) === categoryId)?.name}</span>
+                  ? <span className="font-medium text-fg">{categoryLabel(categories.data?.find((c) => String(c.id) === categoryId)?.name)}</span>
                   : suggested
-                    ? <span><span className="font-medium text-fg">{suggested.categoryName}</span><span className="block text-xs text-muted">matched: {suggested.matchedKeywords.join(', ')}</span></span>
+                    ? <span><span className="font-medium text-fg">{categoryLabel(suggested.categoryName)}</span><span className="block text-xs text-muted">matched: {suggested.matchedKeywords.join(', ')}</span></span>
                     : <span className="text-faint">Type a few words first</span>}
               </PreviewRow>
               <PreviewRow label="Priority (estimate)">
@@ -214,7 +225,7 @@ function PreviewRow({ label, children }: { label: string; children: ReactNode })
 /** Shown right after submitting: what the server decided for the new incident. */
 function ReportedSummary({ incident, onAnother }: { incident: IncidentDetail; onAnother: () => void }) {
   const rows: [string, ReactNode][] = [
-    ['Category', incident.category?.name ?? '-'],
+    ['Category', incident.category ? categoryLabel(incident.category.name) : '-'],
     ['Priority', <>
       {incident.priority ? `${incident.priority} (${PRIORITY_LABEL[incident.priority]})` : '-'}
       {incident.priorityExplanation && <span className="mt-0.5 block font-mono text-[11px] text-muted">{incident.priorityExplanation}</span>}

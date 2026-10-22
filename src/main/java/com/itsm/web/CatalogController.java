@@ -3,6 +3,7 @@ package com.itsm.web;
 import com.itsm.intelligence.CategorySuggestion;
 import com.itsm.service.CatalogService;
 import com.itsm.service.IncidentService;
+import com.itsm.service.ReportService;
 import com.itsm.web.dto.CategoryDto;
 import com.itsm.web.dto.CategorySuggestionRequest;
 import com.itsm.web.dto.ServiceDto;
@@ -26,10 +27,13 @@ public class CatalogController {
 
     private final CatalogService catalogService;
     private final IncidentService incidentService;
+    private final ReportService reportService;
 
-    public CatalogController(CatalogService catalogService, IncidentService incidentService) {
+    public CatalogController(CatalogService catalogService, IncidentService incidentService,
+                             ReportService reportService) {
         this.catalogService = catalogService;
         this.incidentService = incidentService;
+        this.reportService = reportService;
     }
 
     @GetMapping("/services")
@@ -40,6 +44,12 @@ public class CatalogController {
     @GetMapping("/categories")
     public List<CategoryDto> categories() {
         return catalogService.activeCategories().stream().map(CategoryDto::from).toList();
+    }
+
+    @GetMapping("/service-status")
+    @Operation(summary = "Services that have open incidents right now (counts only)")
+    public List<ReportService.ServiceStatus> serviceStatus() {
+        return reportService.serviceStatus();
     }
 
     @PostMapping("/suggest-category")

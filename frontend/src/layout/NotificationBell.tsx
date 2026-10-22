@@ -61,7 +61,7 @@ export function NotificationBell() {
       <button
         onClick={() => setOpen((o) => !o)}
         aria-label={`Notifications (${unread.length} unread)`}
-        className="relative rounded p-2 text-muted hover:bg-surface-2 hover:text-fg cursor-pointer"
+        className="relative rounded-md p-2 text-muted hover:bg-surface-2 hover:text-fg cursor-pointer"
       >
         <Bell className="size-4.5" />
         {unread.length > 0 && (
@@ -71,7 +71,7 @@ export function NotificationBell() {
         )}
       </button>
       {open && (
-        <div className="absolute right-0 z-40 mt-2 w-[min(380px,calc(100vw-2rem))] overflow-hidden rounded-md border border-line bg-surface shadow-md">
+        <div className="fade-in absolute right-0 z-40 mt-2 w-[min(380px,calc(100vw-2rem))] overflow-hidden rounded-lg border border-line bg-surface shadow-pop">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <p className="text-sm font-semibold text-fg">Notifications</p>
             <span className="text-xs text-muted">{unread.length} unread</span>

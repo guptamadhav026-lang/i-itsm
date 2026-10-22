@@ -3,15 +3,16 @@ import { Link, useParams } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
 import { incidentApi } from '../api/endpoints'
+import { ApiError } from '../api/client'
 import { LEVELS, type IncidentDetail, type Level } from '../api/types'
 import { useUser } from '../auth/AuthContext'
 import { availableActions, type IncidentAction } from '../lib/permissions'
-import { formatDateTime, LEVEL_LABEL, timeAgo } from '../lib/format'
+import { categoryLabel, formatDateTime, LEVEL_LABEL, timeAgo } from '../lib/format'
 import { Button } from '../components/ui/Button'
 import { Card, CardBody, CardHeader } from '../components/ui/Card'
 import { Field, Input, Segmented, Textarea } from '../components/ui/Field'
 import { Modal } from '../components/ui/Modal'
-import { Avatar, ErrorState, PageLoader, Tabs } from '../components/ui/misc'
+import { Avatar, EmptyState, ErrorState, PageLoader, Tabs } from '../components/ui/misc'
 import { useToast } from '../components/ui/Toast'
 import { AwaitingInfoBadge, DuplicateBadge, EscalationBadge, PriorityBadge, SlaBadge, StatusBadge } from '../components/incident/badges'
 import { LifecycleStepper } from '../components/incident/LifecycleStepper'
@@ -56,6 +57,20 @@ export function IncidentDetailPage() {
   const busy = action.isPending
 
   if (isLoading) return <PageLoader />
+  if (error instanceof ApiError && (error.status === 403 || error.status === 404)) {
+    const reference = `INC${String(id).padStart(4, '0')}`
+    return (
+      <Card className="mx-auto mt-6 max-w-lg">
+        <EmptyState
+          title={error.status === 403 ? `You can't open ${reference}` : `There is no incident ${reference}`}
+          message={error.status === 403
+            ? 'Employees only see the incidents they reported, and technicians the ones assigned to them.'
+            : 'It may have been typed wrong. Search the list to find the one you need.'}
+          action={<Link to="/incidents"><Button variant="secondary">Go to incidents</Button></Link>}
+        />
+      </Card>
+    )
+  }
   if (error || !incident) return <ErrorState error={error ?? new Error('Not found')} onRetry={refetch} />
 
   const actions = availableActions(incident, user)
@@ -71,11 +86,16 @@ export function IncidentDetailPage() {
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <p className="font-mono text-sm text-muted">{incident.reference}</p>
-          <h1 className="mt-0.5 text-xl font-semibold text-fg">{incident.title}</h1>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <StatusBadge status={incident.status} />
+          <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted">
+            <span className="font-mono text-fg">{incident.reference}</span>
+            <span className="text-faint">/</span>
+            <span>{incident.service.name}</span>
+            {incident.category && <><span className="text-faint">/</span><span>{categoryLabel(incident.category.name)}</span></>}
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold leading-tight text-fg">{incident.title}</h1>
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
             <PriorityBadge priority={incident.priority} />
+            <StatusBadge status={incident.status} />
             <SlaBadge state={incident.slaState} />
             <EscalationBadge level={incident.escalationLevel} />
             {incident.potentialDuplicateOf && <DuplicateBadge />}
@@ -101,11 +121,15 @@ export function IncidentDetailPage() {
       )}
       {incident.potentialDuplicateOf && (
         <div className="mt-4 rounded-md border border-line border-l-4 border-l-slate-400 bg-surface px-4 py-3 text-sm text-fg">
-          This may be the same problem as <b>{incident.potentialDuplicateOf}</b> (detected automatically from the description).
+          This may be the same problem as{' '}
+          {incident.potentialDuplicateOfId && isWorker
+            ? <Link to={`/incidents/${incident.potentialDuplicateOfId}`} className="font-medium text-brand hover:underline">{incident.potentialDuplicateOf}</Link>
+            : <b>{incident.potentialDuplicateOf}</b>}
+          , which is already open. It was spotted automatically from the wording.
         </div>
       )}
 
-      <Card className="mt-5 px-4 py-3">
+      <Card className="mt-5 px-5 pb-3.5 pt-4">
         <LifecycleStepper status={incident.status} />
       </Card>
 
@@ -210,7 +234,7 @@ export function IncidentDetailPage() {
             <CardBody>
               <dl className="space-y-2.5 text-sm">
                 <Detail label="Service">{incident.service.name} <span className="text-xs text-faint">(criticality {incident.service.businessCriticality}/5)</span></Detail>
-                <Detail label="Category">{incident.category?.name ?? '-'}</Detail>
+                <Detail label="Category">{categoryLabel(incident.category?.name)}</Detail>
                 <Detail label="Impact">{LEVEL_LABEL[incident.impact]}</Detail>
                 <Detail label="Urgency">{LEVEL_LABEL[incident.urgency]}</Detail>
                 <Detail label="Affected users">{incident.affectedUsers.toLocaleString()}</Detail>
@@ -226,7 +250,8 @@ export function IncidentDetailPage() {
 
           {(can('feedback') || incident.feedbackRating != null) && (
             <Card>
-              <CardHeader title="Your feedback" subtitle="How happy are you with the resolution?" />
+              <CardHeader title={incident.reporter.id === user.id ? 'Your feedback' : "Reporter's feedback"}
+                subtitle={incident.feedbackRating == null ? 'How happy are you with the fix?' : undefined} />
               <CardBody>
                 {incident.feedbackRating != null ? (
                   <div>
