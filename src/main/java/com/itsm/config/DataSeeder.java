@@ -25,6 +25,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Set;
 
 /**
@@ -45,16 +47,18 @@ public class DataSeeder implements ApplicationRunner {
     private final CategoryRepository categories;
     private final SlaPolicyRepository slaPolicies;
     private final IncidentService incidentService;
+    private final AppClock clock;
 
     public DataSeeder(UserRepository users, UserService userService, ItServiceRepository services,
                       CategoryRepository categories, SlaPolicyRepository slaPolicies,
-                      IncidentService incidentService) {
+                      IncidentService incidentService, AppClock clock) {
         this.users = users;
         this.userService = userService;
         this.services = services;
         this.categories = categories;
         this.slaPolicies = slaPolicies;
         this.incidentService = incidentService;
+        this.clock = clock;
     }
 
     @Override
@@ -67,6 +71,7 @@ public class DataSeeder implements ApplicationRunner {
         seedSlaPolicies();
         seedCategories();
         seedServices();
+        seedServiceSlaPolicies();
         seedUsers();
         seedIncidents();
         log.info("Demo data loaded");
@@ -111,6 +116,15 @@ public class DataSeeder implements ApplicationRunner {
         services.save(new ItService(name, description, criticality));
     }
 
+    // Two services that differ from the defaults: payments cannot wait, the HR portal can.
+    private void seedServiceSlaPolicies() {
+        ItService payments = services.findAll().stream().filter(s -> s.getName().equals("Payment Gateway")).findFirst().orElseThrow();
+        ItService hr = services.findAll().stream().filter(s -> s.getName().equals("HR Portal")).findFirst().orElseThrow();
+        slaPolicies.save(new SlaPolicy(Priority.P2, payments, 10, 60, 75));
+        slaPolicies.save(new SlaPolicy(Priority.P3, hr, 120, 960, 75));
+        slaPolicies.save(new SlaPolicy(Priority.P4, hr, 480, 2880, 75));
+    }
+
     private void seedUsers() {
         user(Role.ADMIN, "kavita", "Kavita Sharma", null, null, null, false, true);
         user(Role.ADMIN, "suresh", "Suresh Iyer", null, null, null, false, false);
@@ -131,43 +145,67 @@ public class DataSeeder implements ApplicationRunner {
     private void seedIncidents() {
         User rohan = userService.getByUsername("rohan");
         User priya = userService.getByUsername("priya");
+        Instant now = clock.realNow();
+        try {
+            // 1. Two days ago: a finished incident, resolved well within its SLA and rated.
+            Instant vpnReported = now.minus(Duration.ofHours(53));
+            at(vpnReported, 0);
+            Incident vpn = report(rohan, "VPN keeps disconnecting", "My VPN connection drops every few minutes when "
+                    + "working from home.", "Corporate Network", Impact.MEDIUM, Urgency.MEDIUM, 1);
+            finish(vpn, rohan, "Updated the VPN client to version 5.2 and reset the network adapter.", 5,
+                    vpnReported, 18, 155);
 
-        // 1. A finished incident: reported, worked on, resolved, verified, closed, rated.
-        Incident vpn = report(rohan, "VPN keeps disconnecting", "My VPN connection drops every few minutes when "
-                + "working from home.", "Corporate Network", Impact.MEDIUM, Urgency.MEDIUM, 1);
-        finish(vpn, rohan, "Updated the VPN client to version 5.2 and reset the network adapter.", 5);
+            // 2. Yesterday: another finished one, fixed 11 minutes after its P1 deadline (so the reports show a
+            //    missed SLA), and history for "suggested resolutions" to learn from.
+            Instant timeoutReported = now.minus(Duration.ofHours(27));
+            at(timeoutReported, 0);
+            Incident timeout = report(priya, "Payment gateway timeout at checkout", "Customers see a timeout error "
+                    + "on the payment page during checkout.", "Payment Gateway", Impact.HIGH, Urgency.HIGH, 50);
+            finish(timeout, priya, "Increased the payment service connection pool and restarted the gateway.", 4,
+                    timeoutReported, 4, 41);
 
-        // 2. Another finished one, so "suggested resolutions" has history to learn from.
-        Incident timeout = report(priya, "Payment gateway timeout at checkout", "Customers see a timeout error "
-                + "on the payment page during checkout.", "Payment Gateway", Impact.HIGH, Urgency.HIGH, 50);
-        finish(timeout, priya, "Increased the payment service connection pool and restarted the gateway.", 4);
+            // 3. This morning: a low priority one the technician has acknowledged.
+            Instant batteryReported = now.minus(Duration.ofHours(3));
+            at(batteryReported, 0);
+            Incident battery = report(rohan, "Laptop battery drains quickly", "My laptop battery lasts only one hour.",
+                    "Employee Laptops", Impact.LOW, Urgency.LOW, 1);
+            User tech = battery.getAssignedTechnician();
+            if (tech != null) {
+                at(batteryReported, 35);
+                incidentService.acknowledge(battery.getId(), tech);
+            }
 
-        // 3. A critical open incident (P1), assigned automatically.
+            // 4. An hour ago: the technician is waiting for information from the reporter.
+            Instant hrReported = now.minus(Duration.ofMinutes(50));
+            at(hrReported, 0);
+            Incident hr = report(priya, "Cannot login to HR portal", "I get an 'invalid password' message when I try "
+                    + "to login to the HR portal.", "HR Portal", Impact.MEDIUM, Urgency.HIGH, 1);
+            User hrTech = hr.getAssignedTechnician();
+            if (hrTech != null) {
+                at(hrReported, 12);
+                incidentService.acknowledge(hr.getId(), hrTech);
+                at(hrReported, 15);
+                incidentService.startInvestigation(hr.getId(), hrTech);
+                at(hrReported, 20);
+                incidentService.requestInformation(hr.getId(), hrTech,
+                        "Which browser are you using, and did you change your password recently?");
+            }
+        } finally {
+            clock.backToRealTime();
+        }
+
+        // 5. Right now: a critical open incident (P1), assigned automatically.
         report(rohan, "Payment application unavailable", "The payment application is down for all users, every "
                 + "transaction fails.", "Payment Gateway", Impact.CRITICAL, Urgency.CRITICAL, 300);
 
-        // 4. Very similar to #3: duplicate detection will flag it.
+        // 6. Very similar to #5: duplicate detection will flag it.
         report(priya, "Unable to make payment", "The payment app shows an error and the transaction fails.",
                 "Payment Gateway", Impact.HIGH, Urgency.HIGH, 40);
+    }
 
-        // 5. A low priority one the technician has acknowledged.
-        Incident battery = report(rohan, "Laptop battery drains quickly", "My laptop battery lasts only one hour.",
-                "Employee Laptops", Impact.LOW, Urgency.LOW, 1);
-        User tech = battery.getAssignedTechnician();
-        if (tech != null) {
-            incidentService.acknowledge(battery.getId(), tech);
-        }
-
-        // 6. Technician is waiting for information from the reporter.
-        Incident hr = report(priya, "Cannot login to HR portal", "I get an 'invalid password' message when I try "
-                + "to login to the HR portal.", "HR Portal", Impact.MEDIUM, Urgency.HIGH, 1);
-        User hrTech = hr.getAssignedTechnician();
-        if (hrTech != null) {
-            incidentService.acknowledge(hr.getId(), hrTech);
-            incidentService.startInvestigation(hr.getId(), hrTech);
-            incidentService.requestInformation(hr.getId(), hrTech,
-                    "Which browser are you using, and did you change your password recently?");
-        }
+    /** Sets the clock to some minutes after the given moment, so the next step is recorded at that time. */
+    private void at(Instant start, int minutesLater) {
+        clock.setTo(start.plus(Duration.ofMinutes(minutesLater)));
     }
 
     private Incident report(User reporter, String title, String description, String serviceName,
@@ -178,16 +216,21 @@ public class DataSeeder implements ApplicationRunner {
                 null, impact, urgency, affectedUsers));
     }
 
-    private void finish(Incident incident, User reporter, String resolution, int rating) {
+    private void finish(Incident incident, User reporter, String resolution, int rating,
+                        Instant reported, int acknowledgedAfter, int resolvedAfter) {
         User tech = incident.getAssignedTechnician();
         if (tech == null) {
             return;
         }
         Long id = incident.getId();
+        at(reported, acknowledgedAfter);
         incidentService.acknowledge(id, tech);
         incidentService.startInvestigation(id, tech);
+        at(reported, acknowledgedAfter + 10);
         incidentService.addInvestigationNote(id, tech, "Reproduced the problem and checked the logs.");
+        at(reported, resolvedAfter);
         incidentService.resolve(id, tech, resolution);
+        at(reported, resolvedAfter + 25);
         incidentService.verify(id, reporter);
         incidentService.close(id, reporter);
         incidentService.giveFeedback(id, reporter, rating, "Thanks, works now.");

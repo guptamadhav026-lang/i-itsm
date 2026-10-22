@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
@@ -25,6 +26,7 @@ import java.util.OptionalDouble;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /** Dashboards and reports for administrators, built with Java Streams and Collectors. */
 @Service
@@ -51,7 +53,7 @@ public class ReportService {
 
     public record Overview(long totalIncidents, long openIncidents, long unresolvedIncidents,
                            long criticalOpenIncidents, long resolvedIncidents, long slaViolations,
-                           double slaCompliancePercent, Double averageResolutionMinutes,
+                           double slaCompliancePercent, Double averageResponseMinutes, Double averageResolutionMinutes,
                            Map<IncidentStatus, Long> byStatus, Map<Priority, Long> byPriority) {
     }
 
@@ -67,14 +69,15 @@ public class ReportService {
     public record ServiceStatus(Long serviceId, String serviceName, long openIncidents, Priority highestPriority) {
     }
 
+    /** SLA results for one priority: how fast incidents were really acknowledged and resolved, and how often late. */
+    public record SlaByPriority(Priority priority, long incidents, Double averageResponseMinutes,
+                                Double averageResolutionMinutes, long responseBreaches, long resolutionBreaches) {
+    }
+
     public Overview overview() {
         List<Incident> all = incidents.findAll();
         long resolved = all.stream().filter(i -> i.getResolvedAt() != null).count();
         long resolvedOnTime = all.stream().filter(i -> i.getResolvedAt() != null && !i.isSlaBreached()).count();
-        OptionalDouble avgResolution = all.stream()
-                .filter(i -> i.getResolvedAt() != null)
-                .mapToLong(i -> Duration.between(i.getCreatedAt(), i.getResolvedAt()).toMinutes())
-                .average();
 
         Map<IncidentStatus, Long> byStatus = new EnumMap<>(IncidentStatus.class);
         all.forEach(i -> byStatus.merge(i.getStatus(), 1L, Long::sum));
@@ -89,8 +92,39 @@ public class ReportService {
                 resolved,
                 all.stream().filter(Incident::isSlaBreached).count(),
                 resolved == 0 ? 100.0 : Math.round(1000.0 * resolvedOnTime / resolved) / 10.0,
-                avgResolution.isPresent() ? Math.round(avgResolution.getAsDouble() * 10) / 10.0 : null,
+                averageResponseMinutes(all), averageResolutionMinutes(all),
                 byStatus, byPriority);
+    }
+
+    public List<SlaByPriority> slaByPriority() {
+        Map<Priority, List<Incident>> byPriority = incidents.findAll().stream()
+                .filter(i -> i.getPriority() != null)
+                .collect(Collectors.groupingBy(Incident::getPriority, () -> new EnumMap<>(Priority.class), Collectors.toList()));
+        return Arrays.stream(Priority.values())
+                .map(p -> {
+                    List<Incident> list = byPriority.getOrDefault(p, List.of());
+                    return new SlaByPriority(p, list.size(), averageResponseMinutes(list), averageResolutionMinutes(list),
+                            list.stream().filter(Incident::isResponseBreached).count(),
+                            list.stream().filter(Incident::isResolutionBreached).count());
+                })
+                .toList();
+    }
+
+    /** Reported until acknowledged, over the incidents a technician has acknowledged. Null if there are none. */
+    private static Double averageResponseMinutes(List<Incident> list) {
+        return averageMinutes(list.stream().filter(i -> i.getAcknowledgedAt() != null)
+                .map(i -> Duration.between(i.getCreatedAt(), i.getAcknowledgedAt())));
+    }
+
+    /** Reported until resolved, over the resolved incidents. */
+    private static Double averageResolutionMinutes(List<Incident> list) {
+        return averageMinutes(list.stream().filter(i -> i.getResolvedAt() != null)
+                .map(i -> Duration.between(i.getCreatedAt(), i.getResolvedAt())));
+    }
+
+    private static Double averageMinutes(Stream<Duration> durations) {
+        OptionalDouble avg = durations.mapToLong(Duration::toSeconds).average();
+        return avg.isPresent() ? Math.round(avg.getAsDouble() / 6.0) / 10.0 : null;
     }
 
     public List<TechnicianWorkload> technicianWorkload() {

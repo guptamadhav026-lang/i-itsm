@@ -33,6 +33,6 @@ public class IncidentViews {
     public IncidentDetailDto detail(Incident incident) {
         Instant now = Instant.now(clock);
         return IncidentDetailDto.from(incident, slaService.stateOf(incident, now),
-                slaService.minutesLeft(incident, now));
+                slaService.minutesLeft(incident, now), slaService.usesServicePolicy(incident));
     }
 }

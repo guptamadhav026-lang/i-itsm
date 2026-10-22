@@ -46,6 +46,12 @@ public class ReportController {
         return reportService.byCategory();
     }
 
+    @GetMapping("/sla-by-priority")
+    @Operation(summary = "Average response and resolution time and SLA breaches for each priority")
+    public List<ReportService.SlaByPriority> slaByPriority() {
+        return reportService.slaByPriority();
+    }
+
     @GetMapping("/sla-risk")
     @Operation(summary = "Open incidents most likely to breach their SLA (risk score 0-100)")
     public List<SlaRisk> slaRisk() {

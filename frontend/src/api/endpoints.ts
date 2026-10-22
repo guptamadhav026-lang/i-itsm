@@ -1,8 +1,9 @@
 import { api, query } from './client'
 import type {
   AuditRecord, Category, CategorySuggestion, CorrelationCluster, CountRow, IncidentDetail, IncidentSummary,
-  Level, LoginResponse, Notification, Overview, Priority, ScoredTechnician, SearchCriteria, Service,
-  ServiceStatus, SimilarIncident, SlaPolicy, SlaRisk, Strategy, SuggestedResolution, TechnicianWorkload, User, Role,
+  IntegrationStatus, Level, LoginResponse, Notification, Overview, Priority, ScoredTechnician, SearchCriteria, Service,
+  ServiceStatus, SimilarIncident, SlaByPriority, SlaPolicy, SlaRisk, Strategy, SuggestedResolution, TechnicianWorkload,
+  User, Role,
 } from './types'
 
 // Every backend endpoint the web app uses, in one file. Each function returns a Promise of typed data.
@@ -63,6 +64,8 @@ export const catalogApi = {
   categories: () => api.get<Category[]>('/api/catalog/categories'),
   suggestCategory: (text: string) => api.post<CategorySuggestion | undefined>('/api/catalog/suggest-category', { text }),
   serviceStatus: () => api.get<ServiceStatus[]>('/api/catalog/service-status'),
+  /** The SLA targets that apply to one service, P1 to P4 */
+  serviceSla: (serviceId: number) => api.get<SlaPolicy[]>(`/api/catalog/services/${serviceId}/sla`),
 }
 
 export const technicianApi = {
@@ -94,6 +97,8 @@ export interface UpdateTechnicianBody {
 export interface ServiceBody { name: string; description: string; businessCriticality: number; active?: boolean }
 export interface CategoryBody { name: string; description: string; keywords: string; active?: boolean }
 
+export interface SlaTargets { responseMinutes: number; resolutionMinutes: number; warningThresholdPercent: number }
+
 export const adminApi = {
   users: () => api.get<User[]>('/api/admin/users'),
   createUser: (body: CreateUserBody) => api.post<User>('/api/admin/users', body),
@@ -109,8 +114,12 @@ export const adminApi = {
   updateCategory: (id: number, body: CategoryBody) => api.put<Category>(`/api/admin/categories/${id}`, body),
 
   slaPolicies: () => api.get<SlaPolicy[]>('/api/admin/sla-policies'),
-  updateSlaPolicy: (priority: Priority, body: Omit<SlaPolicy, 'priority' | 'priorityLabel'>) =>
-    api.put<SlaPolicy>(`/api/admin/sla-policies/${priority}`, body),
+  updateSlaPolicy: (priority: Priority, body: SlaTargets) => api.put<SlaPolicy>(`/api/admin/sla-policies/${priority}`, body),
+  createServiceSla: (body: SlaTargets & { serviceId: number; priority: Priority }) =>
+    api.post<SlaPolicy>('/api/admin/sla-policies/services', body),
+  updateServiceSla: (id: number, body: SlaTargets) => api.put<SlaPolicy>(`/api/admin/sla-policies/services/${id}`, body),
+  deleteServiceSla: (id: number) => api.delete<void>(`/api/admin/sla-policies/services/${id}`),
+  integrations: () => api.get<IntegrationStatus[]>('/api/admin/integrations'),
 
   assignmentStrategies: () => api.get<Strategy[]>('/api/admin/strategies/assignment'),
   setAssignmentStrategy: (name: string) => api.put<Strategy[]>('/api/admin/strategies/assignment', { name }),
@@ -126,6 +135,7 @@ export const reportApi = {
   services: () => api.get<CountRow[]>('/api/reports/services'),
   categories: () => api.get<CountRow[]>('/api/reports/categories'),
   slaRisk: () => api.get<SlaRisk[]>('/api/reports/sla-risk'),
+  slaByPriority: () => api.get<SlaByPriority[]>('/api/reports/sla-by-priority'),
   correlations: () => api.get<CorrelationCluster[]>('/api/reports/correlations'),
 }
 

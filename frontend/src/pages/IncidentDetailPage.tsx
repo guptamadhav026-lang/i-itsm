@@ -201,7 +201,9 @@ export function IncidentDetailPage() {
 
         <div className="space-y-6">
           <Card>
-            <CardHeader title="Service level (SLA)" subtitle={incident.priority ? `${incident.priority} targets` : undefined} />
+            <CardHeader title="Service level (SLA)" subtitle={incident.priority
+              ? incident.serviceSlaPolicy ? `${incident.priority} targets for ${incident.service.name}` : `Default ${incident.priority} targets`
+              : undefined} />
             <CardBody className="space-y-4">
               <SlaCountdown label="Response (acknowledge)" start={incident.createdAt} deadline={incident.responseDeadline}
                 stoppedAt={incident.acknowledgedAt} breached={incident.responseBreached} />

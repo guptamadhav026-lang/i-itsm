@@ -17,6 +17,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -214,6 +215,69 @@ class IncidentApiTest {
                 .andExpect(jsonPath("$[0].openIncidents", is(2)))
                 .andExpect(jsonPath("$[0].highestPriority", is("P1")))
                 .andExpect(jsonPath("$[0].title").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("TC38 A service can have its own SLA targets; other services use the defaults")
+    void serviceSlaPolicies() throws Exception {
+        String priya = login("priya");
+        long hr = serviceId(priya, "HR Portal");
+        long email = serviceId(priya, "Email");
+        mvc.perform(get("/api/catalog/services/" + hr + "/sla").header("Authorization", priya))
+                .andExpect(jsonPath("$[2].priority", is("P3")))
+                .andExpect(jsonPath("$[2].serviceName", is("HR Portal")))
+                .andExpect(jsonPath("$[2].responseMinutes", is(120)))
+                .andExpect(jsonPath("$[0].serviceName").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$[0].resolutionMinutes", is(30)));
+        mvc.perform(get("/api/catalog/services/" + email + "/sla").header("Authorization", priya))
+                .andExpect(jsonPath("$[2].responseMinutes", is(60)));
+
+        // INC0004 is Priya's P3 incident on the HR portal: 2 hours to respond instead of the default 1 hour
+        String detail = mvc.perform(get("/api/incidents/4").header("Authorization", priya))
+                .andExpect(jsonPath("$.serviceSlaPolicy", is(true)))
+                .andReturn().getResponse().getContentAsString();
+        java.time.Duration toRespond = java.time.Duration.between(
+                java.time.Instant.parse(JsonPath.read(detail, "$.createdAt")),
+                java.time.Instant.parse(JsonPath.read(detail, "$.responseDeadline")));
+        org.assertj.core.api.Assertions.assertThat(toRespond).isEqualTo(java.time.Duration.ofMinutes(120));
+
+        String admin = login("kavita");
+        String override = "{\"serviceId\":" + email + ",\"priority\":\"P1\",\"responseMinutes\":3,"
+                + "\"resolutionMinutes\":20,\"warningThresholdPercent\":80}";
+        postJson("/api/admin/sla-policies/services", admin, override).andExpect(status().isCreated());
+        postJson("/api/admin/sla-policies/services", admin, override).andExpect(status().isConflict());
+
+        // The defaults come first in the list and cannot be removed
+        String policies = mvc.perform(get("/api/admin/sla-policies").header("Authorization", admin))
+                .andExpect(jsonPath("$[0].serviceName").value(org.hamcrest.Matchers.nullValue()))
+                .andReturn().getResponse().getContentAsString();
+        Number defaultP1 = JsonPath.read(policies, "$[0].id");
+        mvc.perform(delete("/api/admin/sla-policies/services/" + defaultP1).header("Authorization", admin))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("TC39 SLA report per priority shows real response and resolution times and breaches")
+    void slaByPriority() throws Exception {
+        String admin = login("kavita");
+        mvc.perform(get("/api/reports/sla-by-priority").header("Authorization", admin))
+                .andExpect(jsonPath("$.length()", is(4)))
+                .andExpect(jsonPath("$[0].priority", is("P1")))
+                // P1: the demo payment timeout was acknowledged after 4 minutes and fixed after 41 (deadline 30)
+                .andExpect(jsonPath("$[0].incidents", is(3)))
+                .andExpect(jsonPath("$[0].averageResponseMinutes", is(4.0)))
+                .andExpect(jsonPath("$[0].averageResolutionMinutes", is(41.0)))
+                .andExpect(jsonPath("$[0].responseBreaches", is(0)))
+                .andExpect(jsonPath("$[0].resolutionBreaches", is(1)))
+                .andExpect(jsonPath("$[1].incidents", is(0)))
+                .andExpect(jsonPath("$[1].averageResponseMinutes").value(org.hamcrest.Matchers.nullValue()))
+                // P3: the VPN incident (18 minutes) and the HR portal one (12 minutes)
+                .andExpect(jsonPath("$[2].averageResponseMinutes", is(15.0)));
+        mvc.perform(get("/api/reports/overview").header("Authorization", admin))
+                .andExpect(jsonPath("$.averageResponseMinutes", notNullValue()));
+        mvc.perform(get("/api/admin/integrations").header("Authorization", admin))
+                .andExpect(jsonPath("$[0].name", is("Gemini")))
+                .andExpect(jsonPath("$[0].enabled", is(false)));
     }
 
     @Test

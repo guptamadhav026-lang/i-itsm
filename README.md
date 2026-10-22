@@ -17,10 +17,11 @@ in `model/state`.
 - Three roles with their own screens: employee, technician, administrator. Login with JWT tokens, passwords stored with BCrypt.
 - Priority from impact, urgency, business criticality of the service and number of affected users. Two priority strategies (weighted score, ITIL matrix) that the admin can switch at runtime.
 - Four assignment strategies: smart (skills, experience, past work on the service, workload), skill based, least busy (load based), round robin.
-- SLA response and resolution deadlines per priority, a warning before the deadline, breach detection, and escalation of unacknowledged P1/P2 incidents (team lead, then system administrator, then IT manager).
+- SLA response and resolution deadlines per priority, with optional targets for single services (in the demo, payments must be fixed faster and the HR portal may take longer). A warning before the deadline, breach detection, and escalation of unacknowledged P1/P2 incidents (team lead, then system administrator, then IT manager).
 - Notifications in the app and by e-mail (e-mail is simulated: it is written to the log and shown on the Notifications page).
-- Full audit log of every change, search with 10 filters, management reports and CSV export.
+- Full audit log of every change, search with 10 filters, management reports (including real average response and resolution times and late incidents per priority) and CSV export.
 - Duplicate detection, correlation of related incidents (possible major incident), automatic categorisation, SLA risk score, suggested resolutions from past incidents.
+- Optional Google Gemini categorisation: with an API key the category is chosen by Gemini; without one, or if Gemini cannot be reached, the keyword matcher is used.
 - Live updates: open pages refresh on their own when something changes (Server-Sent Events).
 
 ## Technology
@@ -30,7 +31,9 @@ in `model/state`.
 | Backend | Java 21, Spring Boot 4 (Web, Data JPA, Security, Validation), JWT |
 | Database | H2 (file in `data/`, default) or PostgreSQL (`postgres` profile) |
 | Frontend | React 19 with TypeScript, Vite, TanStack Query, React Router, Tailwind CSS, Recharts |
+| AI (optional) | Google Gemini API (`gemini-3.8-flash`), called with Spring's RestClient |
 | Tests | JUnit 5, Spring MockMvc, AssertJ; Vitest and Testing Library for the frontend |
+| Packaging | Docker and Docker Compose (app plus PostgreSQL); GitHub Actions runs all tests on every push |
 
 ## Running it
 
@@ -55,6 +58,29 @@ When the log shows `Started ItsmApplication`, open http://localhost:8080. The fi
 - PostgreSQL: create a database `itsm`, then `mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=postgres`
   (settings in `application-postgres.properties`, or `ITSM_DB_URL`, `ITSM_DB_USER`, `ITSM_DB_PASSWORD`).
 
+### With Docker
+
+If Docker Desktop is installed, this builds the app and starts it together with a PostgreSQL database:
+
+```bash
+docker compose up --build
+```
+
+Then open http://localhost:8080. `docker compose down -v` stops it and deletes the database.
+
+### Google Gemini (optional)
+
+Get a free API key at https://aistudio.google.com/apikey, then start the app with it:
+
+```bash
+# Windows (PowerShell)
+$env:GEMINI_API_KEY="your-key"; .\mvnw.cmd -Pui spring-boot:run
+# macOS / Linux
+GEMINI_API_KEY=your-key ./mvnw -Pui spring-boot:run
+```
+
+Services and categories shows whether Gemini is switched on. `GEMINI_MODEL` picks another model.
+
 ## Demo accounts
 
 All demo accounts use the password `password123`.
@@ -73,7 +99,7 @@ All demo accounts use the password `password123`.
 ## Tests
 
 ```bash
-mvnw.cmd test             # 37 backend tests
+mvnw.cmd test             # 42 backend tests
 cd frontend && npm test   # 20 frontend tests
 ```
 
@@ -91,6 +117,7 @@ src/main/java/com/itsm
   live/           Third listener, pushes changes to open browsers
   notification/   Notification channels (in-app, e-mail) and their factory
   intelligence/   Duplicate detection, correlation, categorisation, SLA risk, suggestions
+  integration/    Adapter for the Google Gemini API
   service/        Incident workflow, SLA monitor, search, reports, users, catalogue
   repository/     Spring Data JPA repositories
   security/       JWT handling and the current user

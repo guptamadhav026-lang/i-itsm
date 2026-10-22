@@ -161,10 +161,12 @@ public class IncidentService {
                     .orElseThrow(() -> new ResourceNotFoundException("Category " + categoryId + " not found"));
             how = "chosen by the reporter";
         } else {
-            Optional<CategorySuggestion> suggestion = suggestCategory(incident.getTitle() + " " + incident.getDescription());
+            Optional<CategorySuggestion> suggestion = categorizer.categorize(
+                    incident.getTitle() + " " + incident.getDescription(), categories.findByActiveTrueOrderByNameAsc());
             if (suggestion.isPresent()) {
                 category = categories.getReferenceById(suggestion.get().categoryId());
-                how = "found the words " + String.join(", ", suggestion.get().matchedKeywords());
+                how = suggestion.get().fromAi() ? "chosen by " + suggestion.get().source()
+                        : "found the words " + String.join(", ", suggestion.get().matchedKeywords());
             } else {
                 category = categories.findByNameIgnoreCase("GENERAL")
                         .orElseThrow(() -> new InvalidInputException("Please choose a category for this incident"));

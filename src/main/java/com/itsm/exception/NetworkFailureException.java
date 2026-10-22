@@ -2,7 +2,7 @@ package com.itsm.exception;
 
 import org.springframework.http.HttpStatus;
 
-/** An outside system (for now: the mail server) could not be reached. */
+/** An outside system (the mail server or the Gemini API) could not be reached. */
 public class NetworkFailureException extends ItsmException {
 
     public NetworkFailureException(String message) {

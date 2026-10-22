@@ -22,12 +22,12 @@ public record IncidentDetailDto(
         Instant createdAt, Instant assignedAt, Instant acknowledgedAt, Instant resolvedAt,
         Instant verifiedAt, Instant closedAt,
         Instant responseDeadline, Instant resolutionDeadline, SlaState slaState, long minutesToResolutionDeadline,
-        boolean responseBreached, boolean resolutionBreached, EscalationLevel escalationLevel,
+        boolean serviceSlaPolicy, boolean responseBreached, boolean resolutionBreached, EscalationLevel escalationLevel,
         String potentialDuplicateOf, Long potentialDuplicateOfId, String resolution, boolean awaitingReporterInfo,
         Integer feedbackRating, String feedbackComment,
         List<NoteDto> notes) {
 
-    public static IncidentDetailDto from(Incident i, SlaState slaState, long minutesLeft) {
+    public static IncidentDetailDto from(Incident i, SlaState slaState, long minutesLeft, boolean serviceSlaPolicy) {
         return new IncidentDetailDto(
                 i.getId(), i.getReference(), i.getTitle(), i.getDescription(),
                 i.getStatus(), i.currentState().allowedTransitions().stream().sorted().toList(),
@@ -38,7 +38,7 @@ public record IncidentDetailDto(
                 i.getCreatedAt(), i.getAssignedAt(), i.getAcknowledgedAt(), i.getResolvedAt(),
                 i.getVerifiedAt(), i.getClosedAt(),
                 i.getResponseDeadline(), i.getResolutionDeadline(), slaState, minutesLeft,
-                i.isResponseBreached(), i.isResolutionBreached(), i.getEscalationLevel(),
+                serviceSlaPolicy, i.isResponseBreached(), i.isResolutionBreached(), i.getEscalationLevel(),
                 i.getPotentialDuplicateOf() == null ? null : i.getPotentialDuplicateOf().getReference(),
                 i.getPotentialDuplicateOf() == null ? null : i.getPotentialDuplicateOf().getId(),
                 i.getResolution(), i.isAwaitingReporterInfo(),

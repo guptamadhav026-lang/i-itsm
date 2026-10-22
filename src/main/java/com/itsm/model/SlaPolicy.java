@@ -5,9 +5,13 @@ import jakarta.persistence.*;
 
 import java.time.Duration;
 
-/** Response and resolution targets for one priority level. Configurable by administrators. */
+/**
+ * Response and resolution targets for one priority level. Configurable by administrators.
+ * A policy without a service is the default for that priority; a policy with a service overrides the default
+ * for incidents on that service only (e.g. the HR portal can wait longer than the payment gateway).
+ */
 @Entity
-@Table(name = "sla_policy")
+@Table(name = "sla_policy", uniqueConstraints = @UniqueConstraint(columnNames = {"priority", "service_id"}))
 public class SlaPolicy {
 
     @Id
@@ -15,8 +19,13 @@ public class SlaPolicy {
     private Long id;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, unique = true, length = 10)
+    @Column(nullable = false, length = 10)
     private Priority priority;
+
+    /** Null for the default policy of this priority. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "service_id")
+    private ItService service;
 
     /** Minutes allowed before a technician must acknowledge the incident. */
     private int responseMinutes;
@@ -31,7 +40,13 @@ public class SlaPolicy {
     }
 
     public SlaPolicy(Priority priority, int responseMinutes, int resolutionMinutes, int warningThresholdPercent) {
+        this(priority, null, responseMinutes, resolutionMinutes, warningThresholdPercent);
+    }
+
+    public SlaPolicy(Priority priority, ItService service, int responseMinutes, int resolutionMinutes,
+                     int warningThresholdPercent) {
         this.priority = priority;
+        this.service = service;
         update(responseMinutes, resolutionMinutes, warningThresholdPercent);
     }
 
@@ -53,8 +68,11 @@ public class SlaPolicy {
     public Duration responseTime() { return Duration.ofMinutes(responseMinutes); }
     public Duration resolutionTime() { return Duration.ofMinutes(resolutionMinutes); }
 
+    public boolean isDefault() { return service == null; }
+
     public Long getId() { return id; }
     public Priority getPriority() { return priority; }
+    public ItService getService() { return service; }
     public int getResponseMinutes() { return responseMinutes; }
     public int getResolutionMinutes() { return resolutionMinutes; }
     public int getWarningThresholdPercent() { return warningThresholdPercent; }

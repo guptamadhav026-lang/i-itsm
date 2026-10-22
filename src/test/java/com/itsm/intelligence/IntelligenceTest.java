@@ -49,12 +49,12 @@ class IntelligenceTest {
         List<Category> categories = List.of(
                 TestData.category(1, "NETWORK", "vpn, wifi, network"),
                 TestData.category(2, "HARDWARE", "laptop, battery, printer"));
-        Optional<CategorySuggestion> suggestion = new IncidentCategorizer()
+        Optional<CategorySuggestion> suggestion = new IncidentCategorizer(TestData.noAi())
                 .suggest("My VPN disconnects when the wifi is weak", categories);
         assertThat(suggestion).isPresent();
         assertThat(suggestion.get().categoryName()).isEqualTo("NETWORK");
         assertThat(suggestion.get().matchedKeywords()).containsExactlyInAnyOrder("vpn", "wifi");
-        assertThat(new IncidentCategorizer().suggest("Something odd happened", categories)).isEmpty();
+        assertThat(new IncidentCategorizer(TestData.noAi()).suggest("Something odd happened", categories)).isEmpty();
     }
 
     @Test

@@ -15,6 +15,21 @@ import { categoryLabel } from '../../lib/format'
 
 type TabKey = 'services' | 'categories'
 
+/** Says how new incidents are categorised: by keywords only, or by Gemini with the keywords as fallback. */
+function AiStatus() {
+  const { data } = useQuery({ queryKey: ['admin', 'integrations'], queryFn: adminApi.integrations })
+  const gemini = data?.find((i) => i.name === 'Gemini')
+  if (!gemini) return null
+  return (
+    <p className="flex items-start gap-2 border-b border-line bg-surface-2/50 px-5 py-2.5 text-xs text-muted">
+      <span className={cn('mt-1 size-2 shrink-0 rounded-full', gemini.enabled ? 'bg-emerald-500' : 'bg-slate-400')} />
+      {gemini.enabled
+        ? <span>New incidents are categorised by Google Gemini (<span className="font-mono">{gemini.detail}</span>). If it cannot be reached, the keywords below are used.</span>
+        : <span>New incidents are categorised by the keywords below. To let Google Gemini choose the category instead, start the app with a <span className="font-mono">GEMINI_API_KEY</span>.</span>}
+    </p>
+  )
+}
+
 /** IT services (with business criticality) and incident categories (with auto-categorisation keywords). */
 export function CatalogPage() {
   const [tab, setTab] = useState<TabKey>('services')
@@ -51,6 +66,7 @@ export function CatalogPage() {
             ))}
           </ul>
         ))}
+        {tab === 'categories' && <AiStatus />}
         {tab === 'categories' && (categories.error ? <div className="p-5"><ErrorState error={categories.error} /></div> : categories.isLoading ? <PageLoader /> : (
           <ul className="divide-y divide-line">
             {[...(categories.data ?? [])].sort((a, b) => a.name.localeCompare(b.name)).map((c) => (

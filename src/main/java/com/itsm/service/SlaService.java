@@ -3,6 +3,7 @@ package com.itsm.service;
 import com.itsm.exception.MissingSlaConfigurationException;
 import com.itsm.model.Incident;
 import com.itsm.model.IncidentStatus;
+import com.itsm.model.ItService;
 import com.itsm.model.Priority;
 import com.itsm.model.SlaPolicy;
 import com.itsm.model.SlaState;
@@ -11,6 +12,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
 
 /** Works out SLA deadlines and where an incident stands against them. */
 @Service
@@ -22,14 +26,36 @@ public class SlaService {
         this.slaPolicies = slaPolicies;
     }
 
-    public SlaPolicy policyFor(Priority priority) {
-        return slaPolicies.findByPriority(priority)
+    /** The targets for this priority on this service: the service's own policy if it has one, else the default. */
+    public SlaPolicy policyFor(Priority priority, ItService service) {
+        if (service != null) {
+            Optional<SlaPolicy> own = slaPolicies.findByPriorityAndService(priority, service);
+            if (own.isPresent()) {
+                return own.get();
+            }
+        }
+        return slaPolicies.findByPriorityAndServiceIsNull(priority)
                 .orElseThrow(() -> new MissingSlaConfigurationException("No SLA policy configured for " + priority));
+    }
+
+    public SlaPolicy policyFor(Incident incident) {
+        return policyFor(incident.getPriority(), incident.getService());
+    }
+
+    /** True when the incident's service has its own targets for this priority (not the defaults). */
+    public boolean usesServicePolicy(Incident incident) {
+        return incident.getPriority() != null && incident.getService() != null
+                && slaPolicies.findByPriorityAndService(incident.getPriority(), incident.getService()).isPresent();
+    }
+
+    /** The four policies that apply to a service, P1 first. Used for the preview on the report form. */
+    public List<SlaPolicy> policiesFor(ItService service) {
+        return Arrays.stream(Priority.values()).map(p -> policyFor(p, service)).toList();
     }
 
     /** Sets the response and resolution deadlines, counted from when the incident was reported. */
     public void applyDeadlines(Incident incident) {
-        SlaPolicy policy = policyFor(incident.getPriority());
+        SlaPolicy policy = policyFor(incident);
         Instant start = incident.getCreatedAt();
         incident.applySlaDeadlines(start.plus(policy.responseTime()), start.plus(policy.resolutionTime()));
     }
@@ -59,7 +85,7 @@ public class SlaService {
                 || (incident.getAcknowledgedAt() == null && now.isAfter(incident.getResponseDeadline()))) {
             return SlaState.BREACHED;   // the monitor will record it on its next run
         }
-        int threshold = policyFor(incident.getPriority()).getWarningThresholdPercent();
+        int threshold = policyFor(incident).getWarningThresholdPercent();
         return elapsedFraction(incident, now) * 100 >= threshold ? SlaState.AT_RISK : SlaState.ON_TRACK;
     }
 

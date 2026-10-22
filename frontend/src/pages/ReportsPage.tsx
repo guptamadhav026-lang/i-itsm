@@ -4,6 +4,7 @@ import { PRIORITIES, STATUS_ORDER, type Priority } from '../api/types'
 import { Card, CardBody, CardHeader } from '../components/ui/Card'
 import { ErrorState, Meter, PageHeader, PageLoader, Stat, StatRow } from '../components/ui/misc'
 import { ChartCard, Columns, HorizontalBars, LegendItem, SEVERITY, useChartColors } from '../components/charts/charts'
+import { PriorityBadge } from '../components/incident/badges'
 import { cn } from '../lib/cn'
 import { categoryLabel, formatAverage, PRIORITY_LABEL, STATUS_LABEL } from '../lib/format'
 
@@ -18,6 +19,7 @@ export function ReportsPage() {
   const services = useQuery({ queryKey: ['reports', 'services'], queryFn: reportApi.services })
   const categories = useQuery({ queryKey: ['reports', 'categories'], queryFn: reportApi.categories })
   const workload = useQuery({ queryKey: ['reports', 'workload'], queryFn: reportApi.workload })
+  const slaByPriority = useQuery({ queryKey: ['reports', 'sla-by-priority'], queryFn: reportApi.slaByPriority })
 
   if (overview.isLoading) return <PageLoader />
   if (overview.error || !overview.data) return <ErrorState error={overview.error} onRetry={overview.refetch} />
@@ -39,6 +41,7 @@ export function ReportsPage() {
         <Stat label="SLA breaches" value={o.slaViolations} hint="open and resolved incidents" tone={o.slaViolations ? 'warning' : 'default'} />
         <Stat label="Total incidents" value={o.totalIncidents} hint={`${o.unresolvedIncidents} still open`} />
         <Stat label="Critical (P1) open" value={o.criticalOpenIncidents} tone={o.criticalOpenIncidents ? 'danger' : 'default'} />
+        <Stat label="Average time to respond" value={o.averageResponseMinutes != null ? formatAverage(o.averageResponseMinutes) : '-'} hint="from report to acknowledged" />
         <Stat label="Average time to fix" value={o.averageResolutionMinutes != null ? formatAverage(o.averageResolutionMinutes) : '-'} hint="from report to resolved" />
       </StatRow>
 
@@ -66,6 +69,36 @@ export function ReportsPage() {
           <HorizontalBars data={categoryData} valueName="Incidents" />
         </ChartCard>
       </div>
+
+      <Card className="mt-5">
+        <CardHeader title="SLA results by priority" subtitle="How fast incidents were really acknowledged and fixed, and how many were late" />
+        <div className="overflow-x-auto border-t border-line">
+          <table className="w-full text-sm">
+            <thead className="text-xs text-muted">
+              <tr className="border-b border-line">
+                <th className="px-4 py-2 text-left font-medium">Priority</th>
+                <th className="px-4 py-2 text-right font-medium">Incidents</th>
+                <th className="px-4 py-2 text-right font-medium">Average time to respond</th>
+                <th className="px-4 py-2 text-right font-medium">Average time to fix</th>
+                <th className="px-4 py-2 text-right font-medium">Responded late</th>
+                <th className="px-4 py-2 text-right font-medium">Fixed late</th>
+              </tr>
+            </thead>
+            <tbody className="tabular divide-y divide-line">
+              {slaByPriority.data?.map((r) => (
+                <tr key={r.priority}>
+                  <td className="px-4 py-2.5"><PriorityBadge priority={r.priority} /></td>
+                  <td className="px-4 py-2.5 text-right text-fg">{r.incidents}</td>
+                  <td className="px-4 py-2.5 text-right text-fg">{r.averageResponseMinutes != null ? formatAverage(r.averageResponseMinutes) : <span className="text-faint">-</span>}</td>
+                  <td className="px-4 py-2.5 text-right text-fg">{r.averageResolutionMinutes != null ? formatAverage(r.averageResolutionMinutes) : <span className="text-faint">-</span>}</td>
+                  <td className={cn('px-4 py-2.5 text-right', r.responseBreaches ? 'font-medium text-red-700 dark:text-red-400' : 'text-muted')}>{r.responseBreaches}</td>
+                  <td className={cn('px-4 py-2.5 text-right', r.resolutionBreaches ? 'font-medium text-red-700 dark:text-red-400' : 'text-muted')}>{r.resolutionBreaches}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
 
       <Card className="mt-5">
         <CardHeader title="Technician workload" subtitle="Active incidents against each technician's limit, and incidents resolved" />

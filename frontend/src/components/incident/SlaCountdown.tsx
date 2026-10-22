@@ -1,6 +1,6 @@
 import type { SlaState } from '../../api/types'
 import { cn } from '../../lib/cn'
-import { formatCountdown } from '../../lib/format'
+import { formatAverage, formatCountdown, formatMinutes } from '../../lib/format'
 import { useNow } from '../../lib/useNow'
 
 interface Props {
@@ -44,6 +44,11 @@ export function SlaCountdown({ start, deadline, stoppedAt, label, breached, warn
       <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-2">
         <div className={cn('h-full rounded-full transition-all duration-1000', bar)} style={{ width: `${(late && !stoppedAt ? 1 : used) * 100}%` }} />
       </div>
+      {stoppedAt && (
+        <p className="mt-1 text-[11px] text-faint">
+          took {formatAverage((at - startMs) / 60_000)} of {formatMinutes((endMs - startMs) / 60_000)} allowed
+        </p>
+      )}
     </div>
   )
 }

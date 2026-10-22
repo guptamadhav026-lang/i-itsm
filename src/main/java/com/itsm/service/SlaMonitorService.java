@@ -87,7 +87,7 @@ public class SlaMonitorService {
         if (incident.isSlaWarningSent() || incident.isResolutionBreached()) {
             return false;
         }
-        SlaPolicy policy = slaService.policyFor(incident.getPriority());
+        SlaPolicy policy = slaService.policyFor(incident);
         double usedPercent = slaService.elapsedFraction(incident, now) * 100;
         if (usedPercent < policy.getWarningThresholdPercent()) {
             return false;
@@ -104,7 +104,7 @@ public class SlaMonitorService {
                 || !slaService.isWaitingForResponse(incident) || !now.isAfter(incident.getResponseDeadline())) {
             return false;
         }
-        long responseMinutes = Math.max(1, slaService.policyFor(incident.getPriority()).getResponseMinutes());
+        long responseMinutes = Math.max(1, slaService.policyFor(incident).getResponseMinutes());
         long minutesOverdue = Duration.between(incident.getResponseDeadline(), now).toMinutes();
         int levelsDue = (int) Math.min(EscalationLevel.IT_MANAGER.ordinal(), 1 + minutesOverdue / responseMinutes);
 

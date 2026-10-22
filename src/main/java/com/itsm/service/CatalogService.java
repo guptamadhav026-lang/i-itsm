@@ -1,6 +1,7 @@
 package com.itsm.service;
 
 import com.itsm.exception.DuplicateResourceException;
+import com.itsm.exception.InvalidInputException;
 import com.itsm.exception.ResourceNotFoundException;
 import com.itsm.model.Category;
 import com.itsm.model.ItService;
@@ -44,6 +45,11 @@ public class CatalogService {
     @Transactional(readOnly = true)
     public List<ItService> allServices() {
         return services.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public ItService getService(Long id) {
+        return services.findById(id).orElseThrow(() -> new ResourceNotFoundException("IT service " + id + " not found"));
     }
 
     public ItService createService(ServiceRequest request) {
@@ -98,18 +104,54 @@ public class CatalogService {
 
     // SLA policies
 
+    /** Defaults first (P1 to P4), then the service-specific ones grouped by service. */
     @Transactional(readOnly = true)
     public List<SlaPolicy> slaPolicies() {
-        return slaPolicies.findAll().stream().sorted(Comparator.comparing(SlaPolicy::getPriority)).toList();
+        return slaPolicies.findAll().stream()
+                .sorted(Comparator.comparing((SlaPolicy p) -> p.isDefault() ? "" : p.getService().getName())
+                        .thenComparing(SlaPolicy::getPriority))
+                .toList();
     }
 
+    /** Changes the default targets of a priority (creates them if they were missing). */
     public SlaPolicy updateSlaPolicy(Priority priority, SlaPolicyRequest request) {
-        SlaPolicy policy = slaPolicies.findByPriority(priority).orElse(null);
+        SlaPolicy policy = slaPolicies.findByPriorityAndServiceIsNull(priority).orElse(null);
         if (policy == null) {
             return slaPolicies.save(new SlaPolicy(priority, request.responseMinutes(), request.resolutionMinutes(),
                     request.warningThresholdPercent()));
         }
         policy.update(request.responseMinutes(), request.resolutionMinutes(), request.warningThresholdPercent());
+        return policy;
+    }
+
+    /** Gives one service its own targets for one priority, instead of the default ones. */
+    public SlaPolicy createServiceSlaPolicy(Long serviceId, Priority priority, SlaPolicyRequest request) {
+        ItService service = services.findById(serviceId)
+                .orElseThrow(() -> new ResourceNotFoundException("IT service " + serviceId + " not found"));
+        if (slaPolicies.findByPriorityAndService(priority, service).isPresent()) {
+            throw new DuplicateResourceException(service.getName() + " already has its own " + priority + " targets");
+        }
+        return slaPolicies.save(new SlaPolicy(priority, service, request.responseMinutes(),
+                request.resolutionMinutes(), request.warningThresholdPercent()));
+    }
+
+    public SlaPolicy updateServiceSlaPolicy(Long id, SlaPolicyRequest request) {
+        SlaPolicy policy = serviceSlaPolicy(id);
+        policy.update(request.responseMinutes(), request.resolutionMinutes(), request.warningThresholdPercent());
+        return policy;
+    }
+
+    /** Removes a service's own targets, so the defaults apply to it again. */
+    public void deleteServiceSlaPolicy(Long id) {
+        slaPolicies.delete(serviceSlaPolicy(id));
+    }
+
+    private SlaPolicy serviceSlaPolicy(Long id) {
+        SlaPolicy policy = slaPolicies.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("SLA policy " + id + " not found"));
+        if (policy.isDefault()) {
+            throw new InvalidInputException("The default targets can be changed but not removed");
+        }
         return policy;
     }
 }

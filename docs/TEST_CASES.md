@@ -1,6 +1,6 @@
 # I-ITSM Test Cases
 
-Run all of them with `mvnw.cmd test` (Windows) or `./mvnw test`. Result on 22 Oct 2026: 37 run, 37 passed (backend) and 20 run, 20 passed (frontend, `npm test` in `frontend/`).
+Run all of them with `mvnw.cmd test` (Windows) or `./mvnw test`. Result on 22 Oct 2026: 42 run, 42 passed (backend) and 20 run, 20 passed (frontend, `npm test` in `frontend/`).
 
 Types: N = normal operation, B = boundary, I = invalid input, E = exception, A = authorization, R = business rule.
 
@@ -43,6 +43,11 @@ Types: N = normal operation, B = boundary, I = invalid input, E = exception, A =
 | TC35 | E | `NotificationServiceTest.mailServerDown` | Important notification while the e-mail channel throws `NetworkFailureException` | No exception reaches the caller; the in-app notification is still delivered | Pass |
 | TC36 | E | `GlobalExceptionHandlerTest.databaseDown` | A `DataAccessResourceFailureException` reaches the API | Turned into `DatabaseFailureException`: 503 with "The database is not available right now, please try again" | Pass |
 | TC37 | N, R | `IncidentApiTest.serviceStatus` | Priya (employee) asks for `GET /api/catalog/service-status` on the demo data | 200; first row is Payment Gateway with 2 open incidents, highest P1; no incident titles are sent, so employees cannot read other people's reports | Pass |
+| TC38 | N, R, E | `IncidentApiTest.serviceSlaPolicies` | SLA targets of HR Portal and Email; INC0004 (HR Portal, P3); admin adds Email P1 targets twice; admin deletes a default policy | HR Portal P3 is 2 h to respond (its own), P1 is the default; Email uses the defaults; INC0004 has a 120 min response deadline; 201 then 409; 400 (defaults cannot be removed) | Pass |
+| TC39 | N, R | `IncidentApiTest.slaByPriority` | `GET /api/reports/sla-by-priority` on the demo data | P1: 3 incidents, 4 min average response, 41 min average fix, 1 fixed late; P2: none, so no averages; P3: 15 min average response; overview has an average response time; Gemini listed as switched off | Pass |
+| TC40 | N | `GeminiCategorizationTest.geminiAnswerIsRead` | Fake Gemini server answers `**SECURITY**` | Request goes to `/v1beta/models/<model>:generateContent` with the key header and the ticket text; SECURITY is picked | Pass |
+| TC41 | E, B | `GeminiCategorizationTest.geminiDownOrOff` | Fake server answers 503; no API key | `NetworkFailureException`; without a key the adapter is off and returns nothing | Pass |
+| TC42 | E, R | `GeminiCategorizationTest.categoriserFallsBack` | AI answers SECURITY; AI down; AI answers PLUMBING (no such category) | SECURITY from the AI; otherwise the keyword result (NETWORK) | Pass |
 
 ## Frontend unit tests (Vitest)
 
@@ -64,5 +69,6 @@ Screenshots of each step are in [screenshots/](screenshots).
 |---|---|---|---|
 | UI01 | Rohan reports a VPN problem | Preview shows NETWORK and P3; result page shows the P3 calculation, SLA deadlines and that Ananya was assigned; Ananya's open dashboard updates by itself | Pass |
 | UI02 | Ananya and Rohan take it to Closed | Acknowledge, start, ask a question; the question appears for Rohan without reloading, and his answer appears for Ananya; the Similar incidents tab suggests the fix used on INC0001; resolve; Rohan confirms, gives 5 stars, closes; History lists every step | Pass |
-| UI03 | Kavita (admin) | Possible major incident banner; strategy switch; Priya's payment incident flagged as a possible duplicate of INC0003; ranked technicians in the assign dialog; reports; users, catalogue, SLA, audit pages; dark mode; phone layout | Pass |
+| UI03 | Kavita (admin) | Possible major incident banner; strategy switch; Priya's payment incident flagged as a possible duplicate of INC0005; ranked technicians in the assign dialog; reports; users, catalogue, SLA, audit pages; dark mode; phone layout | Pass |
 | UI04 | Every page, every role (22 Oct) | All pages opened as Rohan, Priya, Ananya and Kavita on desktop, on a phone-sized screen and in dark mode, plus every dialog; no page wider than the screen, no browser errors except the expected ones (wrong password 401, another employee's incident 403, INC0099 404), each shown as a clear message | Pass |
+| UI05 | SLA and reports changes (22 Oct) | SLA policies page lists the default targets and the services with their own targets (edit, remove, add); the report form shows the HR Portal's own 2 h / 16 h targets; a closed incident shows "took 41 min of 30 min allowed"; the reports page shows the SLA results by priority; the same app also ran against PostgreSQL in Docker Compose (demo data loaded, login, incidents, SLA report) | Pass |

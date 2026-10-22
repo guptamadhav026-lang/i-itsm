@@ -1,5 +1,7 @@
 package com.itsm;
 
+import com.itsm.exception.NetworkFailureException;
+import com.itsm.integration.AiCategoryAdvisor;
 import com.itsm.model.Category;
 import com.itsm.model.Employee;
 import com.itsm.model.Impact;
@@ -10,6 +12,8 @@ import com.itsm.model.Urgency;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 /** Small helpers to build objects for unit tests (no database involved). */
@@ -50,5 +54,30 @@ public final class TestData {
 
     public static Incident incident(long id, String title) {
         return incident(id, title, title, service(1, "Email", 3), Impact.MEDIUM, Urgency.MEDIUM, 1);
+    }
+
+    /** An AI advisor that is switched off, like the Gemini one without an API key. */
+    public static AiCategoryAdvisor noAi() {
+        return new FakeAi(false, null, false);
+    }
+
+    /** An AI advisor that always picks this category, or always fails if down is true. */
+    public static AiCategoryAdvisor fakeAi(String answer, boolean down) {
+        return new FakeAi(true, answer, down);
+    }
+
+    private record FakeAi(boolean isEnabled, String answer, boolean down) implements AiCategoryAdvisor {
+        @Override
+        public String name() {
+            return "Fake AI";
+        }
+
+        @Override
+        public Optional<String> pickCategory(String text, List<Category> categories) {
+            if (down) {
+                throw new NetworkFailureException("Fake AI could not be reached");
+            }
+            return Optional.ofNullable(answer);
+        }
     }
 }

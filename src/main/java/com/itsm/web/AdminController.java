@@ -1,5 +1,6 @@
 package com.itsm.web;
 
+import com.itsm.integration.GeminiCategoryAdvisor;
 import com.itsm.model.Priority;
 import com.itsm.security.CurrentUser;
 import com.itsm.service.AuditService;
@@ -13,6 +14,7 @@ import com.itsm.web.dto.CategoryRequest;
 import com.itsm.web.dto.CreateUserRequest;
 import com.itsm.web.dto.ServiceDto;
 import com.itsm.web.dto.ServiceRequest;
+import com.itsm.web.dto.ServiceSlaPolicyRequest;
 import com.itsm.web.dto.SlaPolicyDto;
 import com.itsm.web.dto.SlaPolicyRequest;
 import com.itsm.web.dto.StrategyDto;
@@ -25,6 +27,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -50,16 +53,29 @@ public class AdminController {
     private final AssignmentStrategyRegistry assignmentStrategies;
     private final PriorityStrategyRegistry priorityStrategies;
     private final CurrentUser currentUser;
+    private final GeminiCategoryAdvisor gemini;
 
     public AdminController(UserService userService, CatalogService catalogService, AuditService auditService,
                            AssignmentStrategyRegistry assignmentStrategies,
-                           PriorityStrategyRegistry priorityStrategies, CurrentUser currentUser) {
+                           PriorityStrategyRegistry priorityStrategies, CurrentUser currentUser,
+                           GeminiCategoryAdvisor gemini) {
         this.userService = userService;
         this.catalogService = catalogService;
         this.auditService = auditService;
         this.assignmentStrategies = assignmentStrategies;
         this.priorityStrategies = priorityStrategies;
         this.currentUser = currentUser;
+        this.gemini = gemini;
+    }
+
+    /** Whether an outside service is switched on. The API key itself is never sent to the browser. */
+    public record IntegrationStatus(String name, boolean enabled, String detail) {
+    }
+
+    @GetMapping("/integrations")
+    @Operation(summary = "Which outside services are switched on (Gemini categorisation)")
+    public List<IntegrationStatus> integrations() {
+        return List.of(new IntegrationStatus(gemini.name(), gemini.isEnabled(), gemini.getModel()));
     }
 
     // Users
@@ -140,6 +156,26 @@ public class AdminController {
     public SlaPolicyDto updateSlaPolicy(@PathVariable Priority priority,
                                         @Valid @RequestBody SlaPolicyRequest request) {
         return SlaPolicyDto.from(catalogService.updateSlaPolicy(priority, request));
+    }
+
+    @PostMapping("/sla-policies/services")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Give one service its own targets for a priority")
+    public SlaPolicyDto createServiceSlaPolicy(@Valid @RequestBody ServiceSlaPolicyRequest request) {
+        return SlaPolicyDto.from(catalogService.createServiceSlaPolicy(request.serviceId(), request.priority(),
+                request.targets()));
+    }
+
+    @PutMapping("/sla-policies/services/{id}")
+    public SlaPolicyDto updateServiceSlaPolicy(@PathVariable Long id, @Valid @RequestBody SlaPolicyRequest request) {
+        return SlaPolicyDto.from(catalogService.updateServiceSlaPolicy(id, request));
+    }
+
+    @DeleteMapping("/sla-policies/services/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Remove a service's own targets (the defaults apply again)")
+    public void deleteServiceSlaPolicy(@PathVariable Long id) {
+        catalogService.deleteServiceSlaPolicy(id);
     }
 
     // Strategies

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { catalogApi, incidentApi } from '../api/endpoints'
 import { ApiError } from '../api/client'
-import { LEVELS, type IncidentDetail, type Level, type Priority } from '../api/types'
+import { LEVELS, type IncidentDetail, type Level, type Priority, type SlaPolicy } from '../api/types'
 import { Button } from '../components/ui/Button'
 import { Card, CardBody, CardHeader } from '../components/ui/Card'
 import { Field, Input, Segmented, Select, Textarea } from '../components/ui/Field'
@@ -60,6 +60,11 @@ export function ReportIncidentPage() {
   })
 
   const service = services.data?.find((s) => String(s.id) === serviceId)
+  const sla = useQuery({
+    queryKey: ['catalog', 'sla', serviceId],
+    queryFn: () => catalogApi.serviceSla(Number(serviceId)),
+    enabled: !!serviceId,
+  })
   const estimate = useMemo(
     () => service ? estimatePriority(impact, urgency, service.businessCriticality, affectedUsers || 1) : null,
     [service, impact, urgency, affectedUsers],
@@ -191,7 +196,7 @@ export function ReportIncidentPage() {
                 ) : <span className="text-faint">Choose a service</span>}
               </PreviewRow>
               <PreviewRow label="SLA">
-                {estimate ? <span className="text-fg">{slaText(estimate.priority)}</span> : <span className="text-faint">-</span>}
+                {estimate ? <span className="text-fg">{slaText(sla.data?.find((p) => p.priority === estimate.priority))}</span> : <span className="text-faint">-</span>}
               </PreviewRow>
               <PreviewRow label="Assignment">
                 <span className="text-muted">Chosen by the active assignment strategy (skills, workload, experience)</span>
@@ -207,10 +212,10 @@ export function ReportIncidentPage() {
   )
 }
 
-const defaultSla: Record<Priority, [number, number]> = { P1: [5, 30], P2: [15, 120], P3: [60, 480], P4: [240, 1440] }
-function slaText(p: Priority) {
-  const [r, f] = defaultSla[p]
-  return `Respond within ${formatMinutes(r)}, resolve within ${formatMinutes(f)}`
+function slaText(policy: SlaPolicy | undefined) {
+  if (!policy) return '...'
+  const text = `Respond within ${formatMinutes(policy.responseMinutes)}, resolve within ${formatMinutes(policy.resolutionMinutes)}`
+  return policy.serviceName ? `${text} (this service's own targets)` : text
 }
 
 function PreviewRow({ label, children }: { label: string; children: ReactNode }) {

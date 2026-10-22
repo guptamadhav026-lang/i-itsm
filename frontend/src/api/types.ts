@@ -121,6 +121,8 @@ export interface IncidentDetail {
   resolutionDeadline: string | null
   slaState: SlaState
   minutesToResolutionDeadline: number
+  /** true when the service has its own SLA targets for this priority */
+  serviceSlaPolicy: boolean
   responseBreached: boolean
   resolutionBreached: boolean
   escalationLevel: EscalationLevel
@@ -156,8 +158,12 @@ export interface Notification {
 }
 
 export interface SlaPolicy {
+  id: number
   priority: Priority
   priorityLabel: string
+  /** null for the default targets of a priority */
+  serviceId: number | null
+  serviceName: string | null
   responseMinutes: number
   resolutionMinutes: number
   warningThresholdPercent: number
@@ -198,6 +204,8 @@ export interface CategorySuggestion {
   categoryName: string
   matches: number
   matchedKeywords: string[]
+  /** "keywords", or the AI service that chose it (e.g. "Gemini") */
+  source: string
 }
 
 export interface Overview {
@@ -208,6 +216,7 @@ export interface Overview {
   resolvedIncidents: number
   slaViolations: number
   slaCompliancePercent: number
+  averageResponseMinutes: number | null
   averageResolutionMinutes: number | null
   byStatus: Partial<Record<IncidentStatus, number>>
   byPriority: Partial<Record<Priority, number>>
@@ -292,4 +301,19 @@ export interface ServiceStatus {
   serviceName: string
   openIncidents: number
   highestPriority: Priority | null
+}
+
+export interface SlaByPriority {
+  priority: Priority
+  incidents: number
+  averageResponseMinutes: number | null
+  averageResolutionMinutes: number | null
+  responseBreaches: number
+  resolutionBreaches: number
+}
+
+export interface IntegrationStatus {
+  name: string
+  enabled: boolean
+  detail: string
 }
