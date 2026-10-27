@@ -24,7 +24,8 @@ services:
       ITSM_DB_URL: jdbc:postgresql://db:5432/itsm
       ITSM_DB_USER: itsm
       ITSM_DB_PASSWORD: itsm
-      ITSM_JWT_SECRET: ${ITSM_JWT_SECRET:-change-me-in-production-0123456789-abcdefghij}
+      # Empty means a random signing key at every start; set your own (32+ characters) to keep logins across restarts
+      ITSM_JWT_SECRET: ${ITSM_JWT_SECRET:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     ports:
       - "8080:8080"

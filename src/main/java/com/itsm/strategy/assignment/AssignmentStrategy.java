@@ -15,4 +15,9 @@ import java.util.Optional;
 public interface AssignmentStrategy extends NamedStrategy {
 
     Optional<Technician> selectTechnician(Incident incident, List<TechnicianCandidate> candidates);
+
+    /** Why nobody was chosen although free technicians exist. Shown in the audit trail and to administrators. */
+    default String noMatchReason(Incident incident) {
+        return "none of the free technicians suits it";
+    }
 }

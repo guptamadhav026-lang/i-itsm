@@ -39,12 +39,23 @@ public class NotificationEventListener implements IncidentEventListener {
         boolean important = incident.getPriority() != null && incident.getPriority().isHighPriority();
 
         switch (event.type()) {
-            case CREATED -> {
+            case PRIORITY_CALCULATED -> {
+                // Sent once the priority is known (straight after the report), so P1/P2 reports reach the
+                // administrators too, by e-mail as well.
                 recipients.add(incident.getReporter());
                 if (important) {
                     recipients.addAll(administrators.findByActiveTrue());
                 }
-                subject = ref + " reported: " + incident.getTitle();
+                subject = ref + " reported: " + incident.getTitle() + " (" + incident.getPriority() + ")";
+            }
+            case ASSIGNMENT_FAILED -> {
+                recipients.addAll(administrators.findByActiveTrue());
+                subject = ref + " has no technician yet";
+            }
+            case DETAILS_CHANGED -> {
+                recipients.add(incident.getReporter());
+                recipients.add(incident.getAssignedTechnician());
+                subject = ref + " was updated";
             }
             case ASSIGNED -> {
                 recipients.add(incident.getAssignedTechnician());
@@ -87,12 +98,12 @@ public class NotificationEventListener implements IncidentEventListener {
                 important = true;
             }
             default -> {
-                return;   // e.g. NOTE_ADDED, CLASSIFIED: recorded in the audit trail only
+                return;   // e.g. CREATED, NOTE_ADDED, REASSESSED: recorded in the audit trail only
             }
         }
 
         // Nobody needs a notification about something they just did themselves (except their own report).
-        if (event.type() != IncidentEventType.CREATED) {
+        if (event.type() != IncidentEventType.PRIORITY_CALCULATED) {
             recipients.removeIf(u -> u != null && u.getUsername().equals(event.actor()));
         }
         notificationService.notify(recipients, subject, event.description(), incident.getId(), important);

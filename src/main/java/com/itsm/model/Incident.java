@@ -5,6 +5,7 @@ import com.itsm.model.state.IncidentState;
 import com.itsm.model.state.IncidentStateFactory;
 import jakarta.persistence.*;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -77,9 +78,12 @@ public class Incident {
     private Instant verifiedAt;
     private Instant closedAt;
 
+    /** When the current SLA targets started counting: the report, or the last change of priority or service. */
+    private Instant slaStartedAt;
     private Instant responseDeadline;
     private Instant resolutionDeadline;
 
+    private boolean responseWarningSent;
     private boolean slaWarningSent;
     private boolean responseBreached;
     private boolean resolutionBreached;
@@ -183,10 +187,20 @@ public class Incident {
         this.awaitingReporterInfo = false;
     }
 
-    /** The reporter says the fix did not work: back to IN_PROGRESS. */
-    public void reopen() {
+    /**
+     * The reporter says the fix did not work: back to IN_PROGRESS. The rejected fix and any rating of it are
+     * removed (the audit trail keeps them), and the time the incident spent waiting for the reporter's check
+     * is added to the resolution deadline: the SLA clock was paused while the ball was with the reporter.
+     */
+    public void reopen(Instant now) {
         moveTo(IncidentStatus.IN_PROGRESS);
+        if (resolvedAt != null && resolutionDeadline != null && !resolutionBreached) {
+            resolutionDeadline = resolutionDeadline.plus(Duration.between(resolvedAt, now));
+        }
         this.resolvedAt = null;
+        this.resolution = null;
+        this.feedbackRating = null;
+        this.feedbackComment = null;
     }
 
     public void verify(Instant now) {
@@ -220,9 +234,7 @@ public class Incident {
 
     /** Re-assess impact/urgency (e.g. more users turned out to be affected). Only before resolution. */
     public void reassess(Impact newImpact, Urgency newUrgency, int newAffectedUsers) {
-        if (!isUnresolved()) {
-            throw new InvalidInputException("A " + status + " incident can no longer be re-assessed");
-        }
+        requireUnresolved("re-assessed");
         if (newAffectedUsers < 1) {
             throw new InvalidInputException("At least one user must be affected");
         }
@@ -231,27 +243,75 @@ public class Incident {
         this.affectedUsers = newAffectedUsers;
     }
 
+    /** Corrects the title or description (a null value keeps the current one). Only before resolution. */
+    public void updateDetails(String newTitle, String newDescription) {
+        requireUnresolved("edited");
+        if (newTitle != null) {
+            if (newTitle.isBlank()) {
+                throw new InvalidInputException("Title is required");
+            }
+            this.title = newTitle.trim();
+        }
+        if (newDescription != null) {
+            if (newDescription.isBlank()) {
+                throw new InvalidInputException("Description is required");
+            }
+            this.description = newDescription.trim();
+        }
+    }
+
+    /** Re-classification: the automatic (or chosen) category was wrong. Only before resolution. */
+    public void changeCategory(Category newCategory) {
+        requireUnresolved("re-classified");
+        if (newCategory == null) {
+            throw new InvalidInputException("A category is required");
+        }
+        this.category = newCategory;
+    }
+
+    /** The problem is really with another business service. Only before resolution. */
+    public void changeService(ItService newService) {
+        requireUnresolved("moved to another service");
+        if (newService == null) {
+            throw new InvalidInputException("A service is required");
+        }
+        this.service = newService;
+    }
+
+    private void requireUnresolved(String action) {
+        if (!isUnresolved()) {
+            throw new InvalidInputException("A " + status + " incident can no longer be " + action);
+        }
+    }
+
     public void applyPriority(Priority newPriority, double score, String explanation) {
         this.priority = newPriority;
         this.priorityScore = score;
         this.priorityExplanation = explanation;
     }
 
-    public void applySlaDeadlines(Instant responseDeadline, Instant resolutionDeadline) {
+    /** New SLA targets that start counting at {@code start}. Warnings may be sent again for the new targets. */
+    public void applySlaDeadlines(Instant start, Instant responseDeadline, Instant resolutionDeadline) {
+        this.slaStartedAt = start;
         this.responseDeadline = responseDeadline;
         this.resolutionDeadline = resolutionDeadline;
+        this.responseWarningSent = false;
         this.slaWarningSent = false;
     }
 
+    /** One rating per fix, given once the reporter has confirmed it works. */
     public void giveFeedback(int rating, String comment) {
-        if (!EnumSet.of(IncidentStatus.RESOLVED, IncidentStatus.VERIFIED, IncidentStatus.CLOSED).contains(status)) {
-            throw new InvalidInputException("Feedback can only be given after the incident is resolved");
+        if (!EnumSet.of(IncidentStatus.VERIFIED, IncidentStatus.CLOSED).contains(status)) {
+            throw new InvalidInputException("Feedback can be given once you have confirmed the fix");
+        }
+        if (feedbackRating != null) {
+            throw new InvalidInputException("Feedback for " + getReference() + " was already given");
         }
         if (rating < 1 || rating > 5) {
             throw new InvalidInputException("Rating must be between 1 and 5");
         }
         this.feedbackRating = rating;
-        this.feedbackComment = comment;
+        this.feedbackComment = comment == null || comment.isBlank() ? null : comment.trim();
     }
 
     public void markPotentialDuplicateOf(Incident original) {
@@ -259,6 +319,7 @@ public class Incident {
     }
 
     public void escalate() { this.escalationLevel = escalationLevel.next(); }
+    public void markResponseWarningSent() { this.responseWarningSent = true; }
     public void markSlaWarningSent() { this.slaWarningSent = true; }
     public void markResponseBreached() { this.responseBreached = true; }
     public void markResolutionBreached() { this.resolutionBreached = true; }
@@ -304,8 +365,11 @@ public class Incident {
     public Instant getResolvedAt() { return resolvedAt; }
     public Instant getVerifiedAt() { return verifiedAt; }
     public Instant getClosedAt() { return closedAt; }
+    /** Falls back to the report time for incidents saved before this field existed. */
+    public Instant getSlaStartedAt() { return slaStartedAt != null ? slaStartedAt : createdAt; }
     public Instant getResponseDeadline() { return responseDeadline; }
     public Instant getResolutionDeadline() { return resolutionDeadline; }
+    public boolean isResponseWarningSent() { return responseWarningSent; }
     public boolean isSlaWarningSent() { return slaWarningSent; }
     public boolean isResponseBreached() { return responseBreached; }
     public boolean isResolutionBreached() { return resolutionBreached; }

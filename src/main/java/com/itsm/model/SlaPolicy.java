@@ -33,8 +33,10 @@ public class SlaPolicy {
     /** Minutes allowed before the incident must be resolved. */
     private int resolutionMinutes;
 
-    /** Send an "SLA approaching" warning when this % of the resolution time has passed. */
-    private int warningThresholdPercent = 75;
+    public static final int DEFAULT_WARNING_PERCENT = 75;
+
+    /** Send an "SLA approaching" warning when this % of the response or resolution time has passed. */
+    private int warningThresholdPercent = DEFAULT_WARNING_PERCENT;
 
     protected SlaPolicy() {
     }

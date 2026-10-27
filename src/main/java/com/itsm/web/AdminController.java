@@ -5,6 +5,7 @@ import com.itsm.model.Priority;
 import com.itsm.security.CurrentUser;
 import com.itsm.service.AuditService;
 import com.itsm.service.CatalogService;
+import com.itsm.service.StrategyService;
 import com.itsm.service.UserService;
 import com.itsm.strategy.assignment.AssignmentStrategyRegistry;
 import com.itsm.strategy.priority.PriorityStrategyRegistry;
@@ -12,6 +13,7 @@ import com.itsm.web.dto.AuditRecordDto;
 import com.itsm.web.dto.CategoryDto;
 import com.itsm.web.dto.CategoryRequest;
 import com.itsm.web.dto.CreateUserRequest;
+import com.itsm.web.dto.PasswordResetRequest;
 import com.itsm.web.dto.ServiceDto;
 import com.itsm.web.dto.ServiceRequest;
 import com.itsm.web.dto.ServiceSlaPolicyRequest;
@@ -20,6 +22,7 @@ import com.itsm.web.dto.SlaPolicyRequest;
 import com.itsm.web.dto.StrategyDto;
 import com.itsm.web.dto.StrategyRequest;
 import com.itsm.web.dto.UpdateTechnicianRequest;
+import com.itsm.web.dto.UpdateUserRequest;
 import com.itsm.web.dto.UserDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -52,18 +55,20 @@ public class AdminController {
     private final AuditService auditService;
     private final AssignmentStrategyRegistry assignmentStrategies;
     private final PriorityStrategyRegistry priorityStrategies;
+    private final StrategyService strategyService;
     private final CurrentUser currentUser;
     private final GeminiCategoryAdvisor gemini;
 
     public AdminController(UserService userService, CatalogService catalogService, AuditService auditService,
                            AssignmentStrategyRegistry assignmentStrategies,
-                           PriorityStrategyRegistry priorityStrategies, CurrentUser currentUser,
-                           GeminiCategoryAdvisor gemini) {
+                           PriorityStrategyRegistry priorityStrategies, StrategyService strategyService,
+                           CurrentUser currentUser, GeminiCategoryAdvisor gemini) {
         this.userService = userService;
         this.catalogService = catalogService;
         this.auditService = auditService;
         this.assignmentStrategies = assignmentStrategies;
         this.priorityStrategies = priorityStrategies;
+        this.strategyService = strategyService;
         this.currentUser = currentUser;
         this.gemini = gemini;
     }
@@ -88,8 +93,22 @@ public class AdminController {
     @PostMapping("/users")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create an employee, technician or administrator")
-    public UserDto createUser(@Valid @RequestBody CreateUserRequest request) {
-        return UserDto.from(userService.create(request));
+    public UserDto createUser(@Valid @RequestBody CreateUserRequest request, Authentication auth) {
+        return UserDto.from(userService.create(request, currentUser.from(auth)));
+    }
+
+    @PutMapping("/users/{id}")
+    @Operation(summary = "Change a user's name, e-mail, department (employee) or IT manager flag (admin)")
+    public UserDto updateUser(@PathVariable Long id, @Valid @RequestBody UpdateUserRequest request,
+                              Authentication auth) {
+        return UserDto.from(userService.update(id, request, currentUser.from(auth)));
+    }
+
+    @PutMapping("/users/{id}/password")
+    @Operation(summary = "Set a new password for a user who forgot theirs")
+    public UserDto resetPassword(@PathVariable Long id, @Valid @RequestBody PasswordResetRequest request,
+                                 Authentication auth) {
+        return UserDto.from(userService.resetPassword(id, request.newPassword(), currentUser.from(auth)));
     }
 
     @PutMapping("/users/{id}/active")
@@ -105,8 +124,9 @@ public class AdminController {
 
     @PutMapping("/technicians/{id}")
     @Operation(summary = "Update a technician's skills, experience, capacity, availability")
-    public UserDto updateTechnician(@PathVariable Long id, @Valid @RequestBody UpdateTechnicianRequest request) {
-        return UserDto.from(userService.updateTechnician(id, request));
+    public UserDto updateTechnician(@PathVariable Long id, @Valid @RequestBody UpdateTechnicianRequest request,
+                                    Authentication auth) {
+        return UserDto.from(userService.updateTechnician(id, request, currentUser.from(auth)));
     }
 
     // Services & categories
@@ -118,13 +138,14 @@ public class AdminController {
 
     @PostMapping("/services")
     @ResponseStatus(HttpStatus.CREATED)
-    public ServiceDto createService(@Valid @RequestBody ServiceRequest request) {
-        return ServiceDto.from(catalogService.createService(request));
+    public ServiceDto createService(@Valid @RequestBody ServiceRequest request, Authentication auth) {
+        return ServiceDto.from(catalogService.createService(request, currentUser.from(auth)));
     }
 
     @PutMapping("/services/{id}")
-    public ServiceDto updateService(@PathVariable Long id, @Valid @RequestBody ServiceRequest request) {
-        return ServiceDto.from(catalogService.updateService(id, request));
+    public ServiceDto updateService(@PathVariable Long id, @Valid @RequestBody ServiceRequest request,
+                                    Authentication auth) {
+        return ServiceDto.from(catalogService.updateService(id, request, currentUser.from(auth)));
     }
 
     @GetMapping("/categories")
@@ -135,13 +156,15 @@ public class AdminController {
     @PostMapping("/categories")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Add a category at runtime (no code change needed)")
-    public CategoryDto createCategory(@Valid @RequestBody CategoryRequest request) {
-        return CategoryDto.from(catalogService.createCategory(request));
+    public CategoryDto createCategory(@Valid @RequestBody CategoryRequest request, Authentication auth) {
+        return CategoryDto.from(catalogService.createCategory(request, currentUser.from(auth)));
     }
 
     @PutMapping("/categories/{id}")
-    public CategoryDto updateCategory(@PathVariable Long id, @Valid @RequestBody CategoryRequest request) {
-        return CategoryDto.from(catalogService.updateCategory(id, request));
+    @Operation(summary = "Change a category's description, keywords or active flag (the name cannot change)")
+    public CategoryDto updateCategory(@PathVariable Long id, @Valid @RequestBody CategoryRequest request,
+                                      Authentication auth) {
+        return CategoryDto.from(catalogService.updateCategory(id, request, currentUser.from(auth)));
     }
 
     // SLA policies
@@ -154,28 +177,30 @@ public class AdminController {
     @PutMapping("/sla-policies/{priority}")
     @Operation(summary = "Change response/resolution times for a priority")
     public SlaPolicyDto updateSlaPolicy(@PathVariable Priority priority,
-                                        @Valid @RequestBody SlaPolicyRequest request) {
-        return SlaPolicyDto.from(catalogService.updateSlaPolicy(priority, request));
+                                        @Valid @RequestBody SlaPolicyRequest request, Authentication auth) {
+        return SlaPolicyDto.from(catalogService.updateSlaPolicy(priority, request, currentUser.from(auth)));
     }
 
     @PostMapping("/sla-policies/services")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Give one service its own targets for a priority")
-    public SlaPolicyDto createServiceSlaPolicy(@Valid @RequestBody ServiceSlaPolicyRequest request) {
+    public SlaPolicyDto createServiceSlaPolicy(@Valid @RequestBody ServiceSlaPolicyRequest request,
+                                               Authentication auth) {
         return SlaPolicyDto.from(catalogService.createServiceSlaPolicy(request.serviceId(), request.priority(),
-                request.targets()));
+                request.targets(), currentUser.from(auth)));
     }
 
     @PutMapping("/sla-policies/services/{id}")
-    public SlaPolicyDto updateServiceSlaPolicy(@PathVariable Long id, @Valid @RequestBody SlaPolicyRequest request) {
-        return SlaPolicyDto.from(catalogService.updateServiceSlaPolicy(id, request));
+    public SlaPolicyDto updateServiceSlaPolicy(@PathVariable Long id, @Valid @RequestBody SlaPolicyRequest request,
+                                               Authentication auth) {
+        return SlaPolicyDto.from(catalogService.updateServiceSlaPolicy(id, request, currentUser.from(auth)));
     }
 
     @DeleteMapping("/sla-policies/services/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Remove a service's own targets (the defaults apply again)")
-    public void deleteServiceSlaPolicy(@PathVariable Long id) {
-        catalogService.deleteServiceSlaPolicy(id);
+    public void deleteServiceSlaPolicy(@PathVariable Long id, Authentication auth) {
+        catalogService.deleteServiceSlaPolicy(id, currentUser.from(auth));
     }
 
     // Strategies
@@ -188,8 +213,9 @@ public class AdminController {
 
     @PutMapping("/strategies/assignment")
     @Operation(summary = "Switch assignment strategy at runtime: SKILL_BASED, LOAD_BASED, ROUND_ROBIN, SMART")
-    public List<StrategyDto> selectAssignmentStrategy(@Valid @RequestBody StrategyRequest request) {
-        assignmentStrategies.setActive(request.name());
+    public List<StrategyDto> selectAssignmentStrategy(@Valid @RequestBody StrategyRequest request,
+                                                      Authentication auth) {
+        strategyService.selectAssignment(request.name(), currentUser.from(auth));
         return assignmentStrategies();
     }
 
@@ -201,15 +227,15 @@ public class AdminController {
 
     @PutMapping("/strategies/priority")
     @Operation(summary = "Switch priority strategy at runtime: WEIGHTED, ITIL_MATRIX")
-    public List<StrategyDto> selectPriorityStrategy(@Valid @RequestBody StrategyRequest request) {
-        priorityStrategies.setActive(request.name());
+    public List<StrategyDto> selectPriorityStrategy(@Valid @RequestBody StrategyRequest request, Authentication auth) {
+        strategyService.selectPriority(request.name(), currentUser.from(auth));
         return priorityStrategies();
     }
 
     // Audit
 
     @GetMapping("/audit")
-    @Operation(summary = "Most recent audit records across all incidents")
+    @Operation(summary = "Most recent audit records: incident events and administration changes (at most 500)")
     public List<AuditRecordDto> recentAudit(@RequestParam(defaultValue = "100") int limit) {
         return auditService.recent(limit).stream().map(AuditRecordDto::from).toList();
     }

@@ -58,6 +58,19 @@ class IntelligenceTest {
     }
 
     @Test
+    @DisplayName("TC43 Categorisation tie: the category mentioned first wins, not the first in the alphabet")
+    void categorisationTie() {
+        List<Category> categories = List.of(
+                TestData.category(1, "APPLICATION", "app, portal, page"),
+                TestData.category(2, "HARDWARE", "laptop, printer, keyboard"));
+        IncidentCategorizer categorizer = new IncidentCategorizer(TestData.noAi());
+        assertThat(categorizer.suggest("Office printer jams on every page", categories).get().categoryName())
+                .isEqualTo("HARDWARE");
+        assertThat(categorizer.suggest("The portal page freezes after I plug in my keyboard", categories).get()
+                .categoryName()).isEqualTo("APPLICATION");
+    }
+
+    @Test
     @DisplayName("TC20 Correlation groups several open incidents on the same service")
     void correlation() {
         Incident a = TestData.incident(1, "Payments failing", "x", payment, Impact.HIGH, Urgency.HIGH, 10);

@@ -9,8 +9,8 @@ import jakarta.validation.constraints.Size;
 public record RegisterRequest(
         @NotBlank @Size(min = 3, max = 50) @Pattern(regexp = "[a-zA-Z0-9._-]+",
                 message = "may only contain letters, digits, dot, underscore and dash") String username,
-        @NotBlank @Size(min = 8, max = 100) String password,
+        @NotBlank @Size(min = 8, max = 72) String password,
         @NotBlank @Size(max = 100) String fullName,
-        @NotBlank @Email String email,
+        @NotBlank @Email @Size(max = 120) String email,
         @Size(max = 100) String department) {
 }

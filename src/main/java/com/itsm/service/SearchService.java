@@ -2,6 +2,7 @@ package com.itsm.service;
 
 import com.itsm.exception.InvalidInputException;
 import com.itsm.model.Incident;
+import com.itsm.model.IncidentStatus;
 import com.itsm.model.Role;
 import com.itsm.model.User;
 import com.itsm.repository.IncidentRepository;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -38,7 +40,7 @@ public class SearchService {
 
     public List<Incident> search(IncidentSearchCriteria c, User user) {
         List<Specification<Incident>> conditions = new ArrayList<>();
-        ZoneId zone = clock.getZone();
+        ZoneId zone = zoneOf(c.timeZone());
 
         if (c.reference() != null && !c.reference().isBlank()) {
             Long id = parseReference(c.reference());
@@ -46,6 +48,9 @@ public class SearchService {
         }
         if (c.status() != null) {
             conditions.add((root, query, cb) -> cb.equal(root.get("status"), c.status()));
+        }
+        if (Boolean.TRUE.equals(c.openOnly())) {
+            conditions.add((root, query, cb) -> root.get("status").in(IncidentStatus.UNRESOLVED));
         }
         if (c.priority() != null) {
             conditions.add((root, query, cb) -> cb.equal(root.get("priority"), c.priority()));
@@ -72,10 +77,13 @@ public class SearchService {
             conditions.add((root, query, cb) -> cb.lessThan(root.get("createdAt"), to));
         }
         if (c.keyword() != null && !c.keyword().isBlank()) {
-            String pattern = "%" + c.keyword().trim().toLowerCase(Locale.ROOT) + "%";
+            // % and _ typed by the user are searched for literally, not used as wildcards
+            String escaped = c.keyword().trim().toLowerCase(Locale.ROOT)
+                    .replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+            String pattern = "%" + escaped + "%";
             conditions.add((root, query, cb) -> cb.or(
-                    cb.like(cb.lower(root.get("title")), pattern),
-                    cb.like(cb.lower(root.get("description")), pattern)));
+                    cb.like(cb.lower(root.get("title")), pattern, '\\'),
+                    cb.like(cb.lower(root.get("description")), pattern, '\\')));
         }
 
         List<Incident> result = incidents.findAll(Specification.allOf(conditions),
@@ -87,6 +95,18 @@ public class SearchService {
             result = result.stream().filter(i -> slaService.stateOf(i, now) == c.slaState()).toList();
         }
         return result;
+    }
+
+    /** The browser's time zone if it sent a valid one, otherwise the server's. */
+    private ZoneId zoneOf(String timeZone) {
+        if (timeZone != null && !timeZone.isBlank()) {
+            try {
+                return ZoneId.of(timeZone.trim());
+            } catch (DateTimeException e) {
+                // unknown zone name: fall back to the server's
+            }
+        }
+        return clock.getZone();
     }
 
     private static Long parseReference(String reference) {

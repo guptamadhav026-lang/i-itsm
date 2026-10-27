@@ -30,4 +30,10 @@ public class SkillBasedAssignmentStrategy implements AssignmentStrategy {
                 .min(Comparator.comparingDouble(TechnicianCandidate::loadRatio))
                 .map(TechnicianCandidate::technician);
     }
+
+    @Override
+    public String noMatchReason(Incident incident) {
+        return "no free technician has the "
+                + (incident.getCategory() == null ? "needed" : incident.getCategory().getName()) + " skill";
+    }
 }

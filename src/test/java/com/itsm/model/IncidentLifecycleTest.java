@@ -7,6 +7,9 @@ import com.itsm.model.state.IncidentStateFactory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+import java.time.Instant;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -47,19 +50,24 @@ class IncidentLifecycleTest {
     }
 
     @Test
-    @DisplayName("TC03 A resolved incident can be reopened back to IN_PROGRESS")
+    @DisplayName("TC03 A resolved incident can be reopened back to IN_PROGRESS; the rejected fix is removed and the "
+            + "time waiting for the reporter does not count against the SLA")
     void reopen() {
         Incident incident = TestData.incident(1, "VPN down");
         incident.classify(network);
         incident.assignTo(tech, TestData.NOW);
+        Instant deadline = TestData.NOW.plus(Duration.ofHours(8));
+        incident.applySlaDeadlines(TestData.NOW, TestData.NOW.plus(Duration.ofHours(1)), deadline);
         incident.acknowledge(TestData.NOW);
         incident.startInvestigation();
-        incident.resolve("Restarted", TestData.NOW);
+        incident.resolve("Restarted", TestData.NOW.plus(Duration.ofHours(2)));
 
-        incident.reopen();
+        incident.reopen(TestData.NOW.plus(Duration.ofHours(5)));   // the reporter checked 3 hours later
 
         assertThat(incident.getStatus()).isEqualTo(IncidentStatus.IN_PROGRESS);
         assertThat(incident.getResolvedAt()).isNull();
+        assertThat(incident.getResolution()).isNull();
+        assertThat(incident.getResolutionDeadline()).isEqualTo(deadline.plus(Duration.ofHours(3)));
     }
 
     @Test

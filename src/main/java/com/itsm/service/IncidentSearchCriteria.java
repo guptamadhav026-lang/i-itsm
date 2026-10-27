@@ -11,6 +11,8 @@ import java.time.LocalDate;
  *
  * @param reference "INC0007" or just "7"
  * @param keyword   searched in title and description
+ * @param openOnly  true: only incidents that are not resolved yet
+ * @param timeZone  the user's time zone (e.g. "Asia/Kolkata"), so "reported on 26 Oct" means their 26 Oct
  */
 public record IncidentSearchCriteria(
         String reference,
@@ -23,5 +25,7 @@ public record IncidentSearchCriteria(
         LocalDate createdFrom,
         LocalDate createdTo,
         SlaState slaState,
-        String keyword) {
+        String keyword,
+        Boolean openOnly,
+        String timeZone) {
 }

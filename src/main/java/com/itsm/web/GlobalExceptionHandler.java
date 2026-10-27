@@ -14,6 +14,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authorization.AuthorizationDeniedException;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -52,9 +54,24 @@ public class GlobalExceptionHandler {
                 + "(check field names and enum values)", request, null);
     }
 
-    @ExceptionHandler({MethodArgumentTypeMismatchException.class, MissingServletRequestParameterException.class})
-    public ResponseEntity<ApiError> handleBadParameter(Exception ex, HttpServletRequest request) {
-        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request, null);
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiError> handleBadParameter(MethodArgumentTypeMismatchException ex,
+                                                       HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, "'" + ex.getName() + "' has an invalid value '" + ex.getValue() + "'",
+                request, null);
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiError> handleMissingParameter(MissingServletRequestParameterException ex,
+                                                           HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, "'" + ex.getParameterName() + "' is required", request, null);
+    }
+
+    /** No token, or a token that is expired, forged or belongs to a deactivated account (from the security filter). */
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ApiError> handleUnauthenticated(AuthenticationException ex, HttpServletRequest request) {
+        return build(HttpStatus.UNAUTHORIZED, "Please log in again (your session is missing or has expired)",
+                request, null);
     }
 
     @ExceptionHandler({AccessDeniedException.class, AuthorizationDeniedException.class})
@@ -83,8 +100,23 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleUnexpected(Exception ex, HttpServletRequest request) {
+        // Spring's own client errors (unknown URL, wrong HTTP method, wrong content type...) carry their status.
+        if (ex instanceof ErrorResponse error && error.getStatusCode().is4xxClientError()) {
+            HttpStatus status = HttpStatus.valueOf(error.getStatusCode().value());
+            return build(status, clientErrorMessage(status, request), request, null);
+        }
         log.error("Unexpected error on {} {}", request.getMethod(), request.getRequestURI(), ex);
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "Something went wrong on the server", request, null);
+    }
+
+    private static String clientErrorMessage(HttpStatus status, HttpServletRequest request) {
+        return switch (status) {
+            case NOT_FOUND -> "There is no API endpoint at " + request.getRequestURI();
+            case METHOD_NOT_ALLOWED -> request.getRequestURI() + " does not accept " + request.getMethod();
+            case UNSUPPORTED_MEDIA_TYPE -> "Send the request body as JSON (Content-Type: application/json)";
+            case NOT_ACCEPTABLE -> "This endpoint cannot answer in the format you asked for";
+            default -> status.getReasonPhrase();
+        };
     }
 
     private static ResponseEntity<ApiError> build(HttpStatus status, String message, HttpServletRequest request,

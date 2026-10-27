@@ -21,13 +21,14 @@ public record IncidentDetailDto(
         UserRefDto reporter, UserRefDto assignedTechnician,
         Instant createdAt, Instant assignedAt, Instant acknowledgedAt, Instant resolvedAt,
         Instant verifiedAt, Instant closedAt,
-        Instant responseDeadline, Instant resolutionDeadline, SlaState slaState, long minutesToResolutionDeadline,
-        boolean serviceSlaPolicy, boolean responseBreached, boolean resolutionBreached, EscalationLevel escalationLevel,
+        Instant slaStartedAt, Instant responseDeadline, Instant resolutionDeadline, SlaState slaState,
+        long minutesToResolutionDeadline, boolean serviceSlaPolicy, int slaWarningPercent, boolean responseBreached, boolean resolutionBreached, EscalationLevel escalationLevel,
         String potentialDuplicateOf, Long potentialDuplicateOfId, String resolution, boolean awaitingReporterInfo,
         Integer feedbackRating, String feedbackComment,
         List<NoteDto> notes) {
 
-    public static IncidentDetailDto from(Incident i, SlaState slaState, long minutesLeft, boolean serviceSlaPolicy) {
+    public static IncidentDetailDto from(Incident i, SlaState slaState, long minutesLeft, boolean serviceSlaPolicy,
+                                         int slaWarningPercent) {
         return new IncidentDetailDto(
                 i.getId(), i.getReference(), i.getTitle(), i.getDescription(),
                 i.getStatus(), i.currentState().allowedTransitions().stream().sorted().toList(),
@@ -37,8 +38,8 @@ public record IncidentDetailDto(
                 UserRefDto.from(i.getReporter()), UserRefDto.from(i.getAssignedTechnician()),
                 i.getCreatedAt(), i.getAssignedAt(), i.getAcknowledgedAt(), i.getResolvedAt(),
                 i.getVerifiedAt(), i.getClosedAt(),
-                i.getResponseDeadline(), i.getResolutionDeadline(), slaState, minutesLeft,
-                serviceSlaPolicy, i.isResponseBreached(), i.isResolutionBreached(), i.getEscalationLevel(),
+                i.getSlaStartedAt(), i.getResponseDeadline(), i.getResolutionDeadline(), slaState,
+                minutesLeft, serviceSlaPolicy, slaWarningPercent, i.isResponseBreached(), i.isResolutionBreached(), i.getEscalationLevel(),
                 i.getPotentialDuplicateOf() == null ? null : i.getPotentialDuplicateOf().getReference(),
                 i.getPotentialDuplicateOf() == null ? null : i.getPotentialDuplicateOf().getId(),
                 i.getResolution(), i.isAwaitingReporterInfo(),

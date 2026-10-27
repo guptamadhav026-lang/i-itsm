@@ -4,6 +4,7 @@ import com.itsm.exception.NetworkFailureException;
 import com.itsm.exception.ResourceNotFoundException;
 import com.itsm.exception.UnauthorizedOperationException;
 import com.itsm.model.Notification;
+import com.itsm.model.NotificationChannelType;
 import com.itsm.model.User;
 import com.itsm.repository.NotificationRepository;
 import org.slf4j.Logger;
@@ -55,9 +56,10 @@ public class NotificationService {
         return notifications.findByRecipientOrderByCreatedAtDescIdDesc(user);
     }
 
+    /** Only in-app messages count: the EMAIL rows are copies of e-mails already sent, not something to read here. */
     @Transactional(readOnly = true)
     public long unreadCount(User user) {
-        return notifications.countByRecipientAndReadFlagFalse(user);
+        return notifications.countByRecipientAndChannelAndReadFlagFalse(user, NotificationChannelType.IN_APP);
     }
 
     @Transactional

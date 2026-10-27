@@ -30,7 +30,6 @@ public interface IncidentRepository extends JpaRepository<Incident, Long>, JpaSp
             + "and i.resolution is not null")
     long countResolvedByTechnicianForService(@Param("tech") Technician technician, @Param("serviceId") Long serviceId);
 
-    /** Past incidents that have a recorded fix - the knowledge base for "suggested resolution". */
-    @Query("select i from Incident i where i.resolution is not null and i.id <> :excludeId")
-    List<Incident> findResolvedExcluding(@Param("excludeId") Long excludeId);
+    /** Used with VERIFIED and CLOSED: fixes the reporter confirmed, the knowledge base for "suggested resolution". */
+    List<Incident> findByStatusInAndIdNot(Collection<IncidentStatus> statuses, Long excludeId);
 }

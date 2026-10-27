@@ -3,6 +3,10 @@ package com.itsm.config;
 import com.itsm.security.JwtService;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import jakarta.servlet.DispatcherType;
+import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,14 +23,20 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.util.List;
 
 /**
@@ -42,14 +52,29 @@ import java.util.List;
 @EnableMethodSecurity
 public class SecurityConfig {
 
+    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
+
     private static final String[] PUBLIC_URLS = {
-            "/api/auth/login", "/api/auth/register",
+            "/api/auth/login", "/api/auth/register", "/api/auth/options",
             "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/error"
     };
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationConverter jwtConverter)
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationConverter jwtConverter,
+                                                   @Qualifier("handlerExceptionResolver") HandlerExceptionResolver errors)
             throws Exception {
+        // 401 and 403 raised by the security filters get the same JSON error body (GlobalExceptionHandler)
+        // as every other API error, instead of an empty response.
+        AuthenticationEntryPoint unauthorized = (request, response, ex) -> {
+            if (errors.resolveException(request, response, null, ex) == null) {
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+            }
+        };
+        AccessDeniedHandler forbidden = (request, response, ex) -> {
+            if (errors.resolveException(request, response, null, ex) == null) {
+                response.sendError(HttpServletResponse.SC_FORBIDDEN);
+            }
+        };
         http
                 .csrf(csrf -> csrf.disable())          // not needed: no cookies, the token is sent explicitly
                 .cors(cors -> { })
@@ -62,8 +87,27 @@ public class SecurityConfig {
                         .requestMatchers("/api/**").authenticated()
                         // everything else is the web app itself (HTML, JavaScript, CSS): public
                         .anyRequest().permitAll())
-                .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtConverter)));
+                .exceptionHandling(e -> e.authenticationEntryPoint(unauthorized).accessDeniedHandler(forbidden))
+                .oauth2ResourceServer(oauth -> oauth
+                        .bearerTokenResolver(tokenResolver())
+                        .authenticationEntryPoint(unauthorized)
+                        .accessDeniedHandler(forbidden)
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtConverter)));
         return http.build();
+    }
+
+    /**
+     * Reads the "Authorization: Bearer" header, except on the public login URLs: an old token left in the
+     * header must not stop someone from logging in again.
+     */
+    private static BearerTokenResolver tokenResolver() {
+        DefaultBearerTokenResolver header = new DefaultBearerTokenResolver();
+        return request -> {
+            String path = request.getRequestURI();
+            boolean publicAuthUrl = path.equals("/api/auth/login") || path.equals("/api/auth/register")
+                    || path.equals("/api/auth/options");
+            return publicAuthUrl ? null : header.resolve(request);
+        };
     }
 
     @Bean
@@ -71,11 +115,22 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
+    /**
+     * The key that signs login tokens. Without ITSM_JWT_SECRET a random key is made at every start, so nobody can
+     * forge a token with a secret copied from the source code (the price: everyone logs in again after a restart).
+     */
     @Bean
-    public SecretKey jwtSecretKey(@Value("${itsm.security.jwt-secret}") String secret) {
-        byte[] bytes = secret.getBytes(StandardCharsets.UTF_8);
-        if (bytes.length < 32) {
-            throw new IllegalStateException("itsm.security.jwt-secret must be at least 32 characters long");
+    public SecretKey jwtSecretKey(@Value("${itsm.security.jwt-secret:}") String secret) {
+        byte[] bytes;
+        if (secret.isBlank()) {
+            bytes = new byte[32];
+            new SecureRandom().nextBytes(bytes);
+            log.warn("ITSM_JWT_SECRET is not set: using a random signing key, so logins end when the app restarts");
+        } else {
+            bytes = secret.getBytes(StandardCharsets.UTF_8);
+            if (bytes.length < 32) {
+                throw new IllegalStateException("itsm.security.jwt-secret must be at least 32 characters long");
+            }
         }
         return new SecretKeySpec(bytes, "HmacSHA256");
     }

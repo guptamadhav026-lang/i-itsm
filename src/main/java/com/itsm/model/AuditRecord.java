@@ -40,7 +40,9 @@ public class AuditRecord {
     @Column(length = 20)
     private IncidentStatus newStatus;
 
-    @Column(length = 1000)
+    private static final int DESCRIPTION_LENGTH = 1000;
+
+    @Column(length = DESCRIPTION_LENGTH)
     private String description;
 
     protected AuditRecord() {
@@ -56,7 +58,12 @@ public class AuditRecord {
         this.incidentReference = incidentReference;
         this.previousStatus = previousStatus;
         this.newStatus = newStatus;
-        this.description = description;
+        this.description = shorten(description, DESCRIPTION_LENGTH);
+    }
+
+    /** Long texts (a 4000-character note, say) are cut so the record always fits; the full text stays on the incident. */
+    static String shorten(String text, int max) {
+        return text == null || text.length() <= max ? text : text.substring(0, max - 1) + "\u2026";
     }
 
     public Long getId() { return id; }

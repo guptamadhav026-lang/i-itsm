@@ -17,4 +17,10 @@ public class AssignedState implements IncidentState {
     public Set<IncidentStatus> allowedTransitions() {
         return EnumSet.of(IncidentStatus.ACKNOWLEDGED, IncidentStatus.ASSIGNED);
     }
+
+    /** Nobody has started on it yet, so the reporter may still correct the report. */
+    @Override
+    public boolean isEditable() {
+        return true;
+    }
 }

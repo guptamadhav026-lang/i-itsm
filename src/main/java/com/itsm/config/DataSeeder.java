@@ -86,7 +86,7 @@ public class DataSeeder implements ApplicationRunner {
     private void seedCategories() {
         category("NETWORK", "Network and connectivity", "vpn, wifi, network, internet, router, dns, connection, latency, firewall, disconnect");
         category("HARDWARE", "Physical devices", "laptop, battery, keyboard, monitor, printer, mouse, screen, hardware, charger, desktop");
-        category("SOFTWARE", "Installed software", "install, license, software, crash, excel, word, office, upgrade, driver");
+        category("SOFTWARE", "Installed software", "install, license, software, crash, excel, word, microsoft, upgrade, driver");
         category("APPLICATION", "Business applications", "application, app, portal, payment, checkout, website, page, timeout, unavailable, transaction");
         category("DATABASE", "Databases", "database, sql, query, db, deadlock, replication, table, oracle, postgres");
         category("AUTHENTICATION", "Login and access", "login, password, sso, mfa, otp, locked, account, signin, authentication, access");

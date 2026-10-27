@@ -55,10 +55,13 @@ public class IncidentCategorizer {
     /** Keywords only. Fast and free, so it is also used for the live preview while the user types. */
     public Optional<CategorySuggestion> suggest(String text, List<Category> categories) {
         String normalised = " " + normalise(text) + " ";
+        // Most matching keywords wins. On a tie, the category mentioned first wins, because people usually name
+        // the broken thing first: "Printer jams on every page" is HARDWARE ("printer") and not APPLICATION ("page").
         return categories.stream()
                 .map(category -> match(category, normalised))
                 .filter(s -> s.matches() > 0)
-                .max(Comparator.comparingInt(CategorySuggestion::matches));
+                .max(Comparator.comparingInt(CategorySuggestion::matches)
+                        .thenComparing(s -> firstMention(s, normalised), Comparator.reverseOrder()));
     }
 
     private CategorySuggestion match(Category category, String normalisedText) {
@@ -71,6 +74,14 @@ public class IncidentCategorizer {
         }
         return new CategorySuggestion(category.getId(), category.getName(), matched.size(), matched,
                 CategorySuggestion.KEYWORDS);
+    }
+
+    /** Position of the earliest matched keyword in the text. */
+    private static int firstMention(CategorySuggestion suggestion, String normalisedText) {
+        return suggestion.matchedKeywords().stream()
+                .mapToInt(k -> normalisedText.indexOf(" " + normalise(k)))
+                .filter(i -> i >= 0)
+                .min().orElse(Integer.MAX_VALUE);
     }
 
     private static String normalise(String text) {

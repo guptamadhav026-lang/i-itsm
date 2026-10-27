@@ -19,7 +19,8 @@ import java.time.Instant;
  * Background SLA checks (run every minute by {@link SlaMonitorScheduler}):
  * <ul>
  *   <li>records response and resolution SLA violations,</li>
- *   <li>sends one "SLA approaching" warning when the warning threshold is passed,</li>
+ *   <li>sends one "SLA approaching" warning for the response and one for the resolution deadline when the
+ *       warning threshold is passed,</li>
  *   <li>Intelligent feature C, automatic escalation: a P1/P2 incident nobody has acknowledged is
  *       escalated Team Lead -> System Administrator -> IT Manager, one level per missed response window.</li>
  * </ul>
@@ -51,6 +52,7 @@ public class SlaMonitorService {
             }
             boolean touched = checkResponse(incident, now);
             touched |= checkResolution(incident, now);
+            touched |= checkResponseWarning(incident, now);
             touched |= checkWarning(incident, now);
             touched |= checkEscalation(incident, now);
             if (touched) {
@@ -80,6 +82,23 @@ public class SlaMonitorService {
         publish(IncidentEventType.SLA_VIOLATED, incident,
                 "Not resolved by " + TimeText.of(incident.getResolutionDeadline(), clock)
                         + ", so the resolution SLA was missed");
+        return true;
+    }
+
+    /** Nobody has acknowledged it yet and most of the response time is gone. */
+    private boolean checkResponseWarning(Incident incident, Instant now) {
+        if (incident.isResponseWarningSent() || incident.isResponseBreached() || incident.getAcknowledgedAt() != null) {
+            return false;
+        }
+        SlaPolicy policy = slaService.policyFor(incident);
+        double usedPercent = slaService.responseElapsedFraction(incident, now) * 100;
+        if (usedPercent < policy.getWarningThresholdPercent()) {
+            return false;
+        }
+        incident.markResponseWarningSent();
+        publish(IncidentEventType.SLA_WARNING, incident, String.format(
+                "%.0f%% of the response time is used up and nobody has acknowledged it, %d min left",
+                usedPercent, Math.max(0, slaService.minutesLeftToRespond(incident, now))));
         return true;
     }
 

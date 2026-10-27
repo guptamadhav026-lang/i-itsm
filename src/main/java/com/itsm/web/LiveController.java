@@ -1,5 +1,6 @@
 package com.itsm.web;
 
+import com.itsm.exception.AuthenticationFailedException;
 import com.itsm.live.LiveUpdateHub;
 import com.itsm.model.Role;
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,6 +29,10 @@ public class LiveController {
     @Operation(summary = "Server-Sent Events stream of incident changes (used by the web app)")
     public SseEmitter stream(Authentication authentication) {
         // The role comes from the token itself, so this long-lived request never touches the database.
+        // A deactivated account's token may still be valid, so the hub's in-memory block list is checked.
+        if (hub.isBlocked(authentication.getName())) {
+            throw new AuthenticationFailedException("Account is deactivated");
+        }
         Role role = authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .filter(a -> a.startsWith("ROLE_"))

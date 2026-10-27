@@ -4,12 +4,15 @@ import com.itsm.MutableClock;
 import com.itsm.model.EscalationLevel;
 import com.itsm.model.Impact;
 import com.itsm.model.Incident;
+import com.itsm.model.IncidentStatus;
 import com.itsm.model.Priority;
 import com.itsm.model.SlaState;
+import com.itsm.model.Technician;
 import com.itsm.model.Urgency;
 import com.itsm.model.User;
 import com.itsm.repository.AuditRecordRepository;
 import com.itsm.repository.ItServiceRepository;
+import com.itsm.repository.TechnicianRepository;
 import com.itsm.event.IncidentEventType;
 import com.itsm.web.dto.CreateIncidentRequest;
 import org.junit.jupiter.api.DisplayName;
@@ -25,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -51,6 +55,7 @@ class SlaMonitorServiceTest {
     @Autowired private SlaService slaService;
     @Autowired private ItServiceRepository services;
     @Autowired private AuditRecordRepository audit;
+    @Autowired private TechnicianRepository technicians;
 
     private Incident reportCriticalPaymentIncident() {
         User rohan = userService.getByUsername("rohan");
@@ -88,6 +93,75 @@ class SlaMonitorServiceTest {
         assertThat(audit.findByIncidentIdOrderByTimestampAscIdAsc(incident.getId()))
                 .extracting(r -> r.getAction())
                 .contains(IncidentEventType.SLA_VIOLATED, IncidentEventType.ESCALATED);
+    }
+
+    @Test
+    @DisplayName("TC44 Warning before the response deadline while nobody has acknowledged the incident")
+    void responseWarning() {
+        Incident incident = reportCriticalPaymentIncident();
+
+        clock.advance(Duration.ofSeconds(4 * 60));   // 4 of the 5 response minutes = 80 %
+        monitor.runChecks();
+
+        assertThat(incident.isResponseWarningSent()).isTrue();
+        assertThat(incident.isResponseBreached()).isFalse();
+        assertThat(audit.findByIncidentIdOrderByTimestampAscIdAsc(incident.getId()))
+                .anyMatch(r -> r.getAction() == IncidentEventType.SLA_WARNING
+                        && r.getDescription().contains("response time"));
+    }
+
+    @Test
+    @DisplayName("TC45 A late acknowledgement is logged first, then the missed response SLA")
+    void lateAcknowledgeOrder() {
+        Incident incident = reportCriticalPaymentIncident();
+        clock.advance(Duration.ofMinutes(6));
+
+        incidentService.acknowledge(incident.getId(), incident.getAssignedTechnician());
+
+        assertThat(audit.findByIncidentIdOrderByTimestampAscIdAsc(incident.getId()))
+                .extracting(r -> r.getAction())
+                .containsSubsequence(IncidentEventType.ACKNOWLEDGED, IncidentEventType.SLA_VIOLATED);
+    }
+
+    @Test
+    @DisplayName("TC46 Raising an old P4 to P1 gives new targets from that moment, so it is not late at once")
+    void priorityRaiseRestartsTargets() {
+        User rohan = userService.getByUsername("rohan");
+        Long laptopsId = services.findAll().stream()
+                .filter(s -> s.getName().equals("Employee Laptops")).findFirst().orElseThrow().getId();
+        Incident incident = incidentService.create(rohan, new CreateIncidentRequest("Laptop screen flickers",
+                "The screen flickers now and then", laptopsId, null, Impact.LOW, Urgency.LOW, 1));
+        assertThat(incident.getPriority()).isEqualTo(Priority.P4);
+
+        clock.advance(Duration.ofMinutes(30));   // longer than the whole P1 response time
+        Instant now = Instant.now(clock);
+        incidentService.reassess(incident.getId(), userService.getByUsername("kavita"),
+                Impact.CRITICAL, Urgency.CRITICAL, 400);
+        monitor.runChecks();
+
+        assertThat(incident.getPriority()).isEqualTo(Priority.P1);   // 4 x 4 x 2 x 1.5 = 48
+        assertThat(incident.getSlaStartedAt()).isEqualTo(now);
+        assertThat(incident.getResponseDeadline()).isAfter(now);
+        assertThat(incident.isSlaBreached()).isFalse();
+        assertThat(audit.findByIncidentIdOrderByTimestampAscIdAsc(incident.getId()))
+                .extracting(r -> r.getAction()).contains(IncidentEventType.PRIORITY_CHANGED)
+                .doesNotContain(IncidentEventType.SLA_VIOLATED);
+    }
+
+    @Test
+    @DisplayName("TC47 Nobody free: the incident waits, admins are told why, and it is assigned once someone is free")
+    void waitingForTechnician() {
+        List<Technician> all = technicians.findAll();
+        all.forEach(t -> t.setAvailable(false));
+        Incident incident = reportCriticalPaymentIncident();
+        assertThat(incident.getStatus()).isEqualTo(IncidentStatus.CLASSIFIED);
+        assertThat(audit.findByIncidentIdOrderByTimestampAscIdAsc(incident.getId()))
+                .anyMatch(r -> r.getAction() == IncidentEventType.ASSIGNMENT_FAILED
+                        && r.getDescription().contains("busy, away or at their limit"));
+
+        all.forEach(t -> t.setAvailable(true));
+        assertThat(incidentService.assignWaitingIncidents()).isGreaterThanOrEqualTo(1);
+        assertThat(incident.getStatus()).isEqualTo(IncidentStatus.ASSIGNED);
     }
 
     @Test

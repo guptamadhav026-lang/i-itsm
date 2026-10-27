@@ -9,6 +9,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Predicate;
 
@@ -28,6 +30,7 @@ public class LiveUpdateHub {
 
     // CopyOnWriteArrayList: safe when one thread sends while another thread adds or removes a connection.
     private final List<Subscriber> subscribers = new CopyOnWriteArrayList<>();
+    private final Set<String> blocked = ConcurrentHashMap.newKeySet();
 
     public SseEmitter subscribe(String username, Role role) {
         SseEmitter emitter = new SseEmitter(NO_TIMEOUT);
@@ -59,6 +62,28 @@ public class LiveUpdateHub {
                 subscribers.remove(subscriber);
             }
         }
+    }
+
+    /**
+     * A deactivated account: its open connections are closed and its still-valid token cannot open new ones.
+     * Kept in memory so the check needs no database access (an open stream must not hold a database connection).
+     */
+    public void block(String username) {
+        blocked.add(username);
+        for (Subscriber subscriber : subscribers) {
+            if (subscriber.username().equals(username)) {
+                subscribers.remove(subscriber);
+                subscriber.emitter().complete();
+            }
+        }
+    }
+
+    public void unblock(String username) {
+        blocked.remove(username);
+    }
+
+    public boolean isBlocked(String username) {
+        return blocked.contains(username);
     }
 
     public int connectionCount() {

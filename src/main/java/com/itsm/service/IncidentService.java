@@ -39,6 +39,7 @@ import com.itsm.strategy.assignment.TechnicianCandidate;
 import com.itsm.strategy.priority.PriorityAssessment;
 import com.itsm.strategy.priority.PriorityStrategyRegistry;
 import com.itsm.web.dto.CreateIncidentRequest;
+import com.itsm.web.dto.UpdateIncidentRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +47,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -128,11 +130,12 @@ public class IncidentService {
         // 6. Determine the applicable SLA
         slaService.applyDeadlines(incident);
 
-        // Intelligent feature: is this the same problem as an open incident?
-        detectDuplicates(incident);
-
         // 7-9. Pick a technician and assign (notifications follow automatically from the event)
-        tryAutoAssign(incident, IncidentEvent.SYSTEM);
+        tryAutoAssign(incident, IncidentEvent.SYSTEM, true);
+
+        // Intelligent feature: is this the same problem as an open incident? (after assignment, so the
+        // technician who now owns it is told too)
+        detectDuplicates(incident);
         return incident;
     }
 
@@ -192,11 +195,22 @@ public class IncidentService {
         }
     }
 
-    /** Uses the active assignment strategy. Leaves the incident CLASSIFIED if nobody is free. */
-    private boolean tryAutoAssign(Incident incident, String actor) {
+    /**
+     * Uses the active assignment strategy. Leaves the incident CLASSIFIED if nobody fits; with reportFailure the
+     * audit trail and the administrators are told why. Waiting incidents are tried again every minute.
+     */
+    private boolean tryAutoAssign(Incident incident, String actor, boolean reportFailure) {
         AssignmentStrategy strategy = assignmentStrategies.getActive();
-        Optional<Technician> chosen = strategy.selectTechnician(incident, candidatesFor(incident));
+        List<TechnicianCandidate> candidates = candidatesFor(incident);
+        Optional<Technician> chosen = strategy.selectTechnician(incident, candidates);
         if (chosen.isEmpty()) {
+            if (reportFailure) {
+                String reason = candidates.isEmpty() ? "every technician is busy, away or at their limit"
+                        : strategy.noMatchReason(incident);
+                publish(IncidentEventType.ASSIGNMENT_FAILED, incident, IncidentEvent.SYSTEM, incident.getStatus(),
+                        "No technician assigned: " + reason + ". It is tried again every minute, "
+                                + "or an administrator can assign it.");
+            }
             return false;
         }
         IncidentStatus before = incident.getStatus();
@@ -204,6 +218,17 @@ public class IncidentService {
         publish(IncidentEventType.ASSIGNED, incident, actor, before, "Assigned to " + chosen.get().getFullName()
                 + " by the " + strategy.name().toLowerCase(Locale.ROOT).replace('_', ' ') + " strategy");
         return true;
+    }
+
+    /** Incidents still waiting for a technician get another try (someone may have become free). Run every minute. */
+    public int assignWaitingIncidents() {
+        int assigned = 0;
+        for (Incident incident : incidents.findByStatusIn(List.of(IncidentStatus.CLASSIFIED))) {
+            if (tryAutoAssign(incident, IncidentEvent.SYSTEM, false)) {
+                assigned++;
+            }
+        }
+        return assigned;
     }
 
     /** Technicians who can take more work right now, with the numbers the strategies need. */
@@ -244,6 +269,10 @@ public class IncidentService {
         Incident incident = find(id);
         Technician technician = technicians.findById(technicianId)
                 .orElseThrow(() -> new ResourceNotFoundException("Technician " + technicianId + " not found"));
+        if (technician.isAssignedTo(incident) && IncidentStatus.ACTIVE_WORK.contains(incident.getStatus())) {
+            throw new InvalidInputException(incident.getReference() + " is already assigned to "
+                    + technician.getFullName());
+        }
         if (!technician.isActive() || !technician.isAvailable()) {
             throw new TechnicianUnavailableException(technician.getFullName() + " is not available right now");
         }
@@ -261,7 +290,7 @@ public class IncidentService {
 
     public Incident autoAssign(Long id, User admin) {
         Incident incident = find(id);
-        if (!tryAutoAssign(incident, admin.getUsername())) {
+        if (!tryAutoAssign(incident, admin.getUsername(), false)) {
             throw new TechnicianUnavailableException("No technician is currently available for "
                     + incident.getReference());
         }
@@ -275,14 +304,14 @@ public class IncidentService {
         requireAssignedTechnicianOrAdmin(incident, user);
         IncidentStatus before = incident.getStatus();
         incident.acknowledge(now());
+        publish(IncidentEventType.ACKNOWLEDGED, incident, user.getUsername(), before,
+                "Acknowledged by " + user.getFullName());
         if (!incident.isResponseBreached() && incident.getAcknowledgedAt().isAfter(incident.getResponseDeadline())) {
             incident.markResponseBreached();
             publish(IncidentEventType.SLA_VIOLATED, incident, IncidentEvent.SYSTEM, incident.getStatus(),
                     "Acknowledged after the deadline (" + TimeText.of(incident.getResponseDeadline(), clock)
                             + "), so the response SLA was missed");
         }
-        publish(IncidentEventType.ACKNOWLEDGED, incident, user.getUsername(), before,
-                "Acknowledged by " + user.getFullName());
         return incident;
     }
 
@@ -313,14 +342,14 @@ public class IncidentService {
         requireAssignedTechnicianOrAdmin(incident, user);
         IncidentStatus before = incident.getStatus();
         incident.resolve(resolution, now());
+        publish(IncidentEventType.RESOLVED, incident, user.getUsername(), before,
+                "Resolved by " + user.getFullName() + ": " + incident.getResolution());
         if (!incident.isResolutionBreached() && incident.getResolvedAt().isAfter(incident.getResolutionDeadline())) {
             incident.markResolutionBreached();
             publish(IncidentEventType.SLA_VIOLATED, incident, IncidentEvent.SYSTEM, incident.getStatus(),
                     "Resolved after the deadline (" + TimeText.of(incident.getResolutionDeadline(), clock)
                             + "), so the resolution SLA was missed");
         }
-        publish(IncidentEventType.RESOLVED, incident, user.getUsername(), before,
-                "Resolved by " + user.getFullName() + ": " + incident.getResolution());
         return incident;
     }
 
@@ -329,17 +358,110 @@ public class IncidentService {
                              int affectedUsers) {
         Incident incident = find(id);
         requireAssignedTechnicianOrAdmin(incident, user);
-        Priority oldPriority = incident.getPriority();
+        String before = describeAssessment(incident.getImpact(), incident.getUrgency(), incident.getAffectedUsers());
         incident.reassess(impact, urgency, affectedUsers);
-        PriorityAssessment assessment = priorityStrategies.getActive().assess(incident);
-        incident.applyPriority(assessment.priority(), assessment.score(), assessment.explanation());
-        if (assessment.priority() != oldPriority) {
-            slaService.applyDeadlines(incident);
-            publish(IncidentEventType.PRIORITY_CHANGED, incident, user.getUsername(), incident.getStatus(),
-                    "Priority changed from " + oldPriority + " to " + assessment.priority() + ": "
-                            + assessment.explanation());
+        String after = describeAssessment(impact, urgency, affectedUsers);
+        recalculatePriority(incident, user, "Re-assessed by " + user.getFullName() + " (" + before + " to " + after + ")",
+                false);
+        return incident;
+    }
+
+    /**
+     * Corrects an incident. The reporter may change the title and description until a technician acknowledges it
+     * (the State object decides, see IncidentState.isEditable). The assigned technician or an administrator may
+     * change everything, including the category (re-classification) and the service, until it is resolved.
+     */
+    public Incident update(Long id, User user, UpdateIncidentRequest request) {
+        Incident incident = find(id);
+        boolean staff = user.getRole() == Role.ADMIN
+                || (user instanceof Technician technician && technician.isAssignedTo(incident));
+        if (!staff) {
+            requireReporterOrAdmin(incident, user);
+            if (!incident.currentState().isEditable()) {
+                throw new InvalidInputException("A technician is already working on " + incident.getReference()
+                        + ", so add a comment instead of editing it");
+            }
+            if (request.categoryId() != null || request.serviceId() != null) {
+                throw new UnauthorizedOperationException("Only the technician or an administrator can change the "
+                        + "category or service of " + incident.getReference());
+            }
+        }
+
+        List<String> changes = new ArrayList<>();
+        if (request.title() != null && !request.title().trim().equals(incident.getTitle())) {
+            changes.add("title");
+        }
+        if (request.description() != null && !request.description().trim().equals(incident.getDescription())) {
+            changes.add("description");
+        }
+        incident.updateDetails(request.title(), request.description());
+
+        if (request.categoryId() != null && !request.categoryId().equals(idOf(incident.getCategory()))) {
+            Category category = categories.findById(request.categoryId()).filter(Category::isActive)
+                    .orElseThrow(() -> new ResourceNotFoundException("Category " + request.categoryId() + " not found"));
+            changes.add("category " + nameOf(incident.getCategory()) + " to " + category.getName());
+            incident.changeCategory(category);
+        }
+        boolean serviceChanged = false;
+        if (request.serviceId() != null && !request.serviceId().equals(incident.getService().getId())) {
+            ItService service = services.findById(request.serviceId()).filter(ItService::isActive)
+                    .orElseThrow(() -> new ResourceNotFoundException("IT service " + request.serviceId() + " not found"));
+            changes.add("service " + incident.getService().getName() + " to " + service.getName());
+            incident.changeService(service);
+            serviceChanged = true;
+        }
+        if (changes.isEmpty()) {
+            return incident;
+        }
+        publish(IncidentEventType.DETAILS_CHANGED, incident, user.getUsername(), incident.getStatus(),
+                "Changed by " + user.getFullName() + ": " + String.join(", ", changes));
+        if (serviceChanged) {
+            // the business criticality and the service's own SLA targets may differ
+            recalculatePriority(incident, user, "Service changed", true);
         }
         return incident;
+    }
+
+    /** Runs the active priority strategy again; a new priority (or service) restarts the SLA targets from now. */
+    private void recalculatePriority(Incident incident, User user, String reason, boolean serviceChanged) {
+        Priority oldPriority = incident.getPriority();
+        PriorityAssessment assessment = priorityStrategies.getActive().assess(incident);
+        incident.applyPriority(assessment.priority(), assessment.score(), assessment.explanation());
+        if (assessment.priority() != oldPriority || serviceChanged) {
+            slaService.restartDeadlines(incident, now());
+        }
+        if (assessment.priority() != oldPriority) {
+            publish(IncidentEventType.PRIORITY_CHANGED, incident, user.getUsername(), incident.getStatus(),
+                    reason + ": priority changed from " + oldPriority + " to " + assessment.priority() + ". "
+                            + assessment.explanation() + ". New targets: respond by "
+                            + TimeText.of(incident.getResponseDeadline(), clock) + ", fix by "
+                            + TimeText.of(incident.getResolutionDeadline(), clock));
+        } else {
+            publish(IncidentEventType.REASSESSED, incident, user.getUsername(), incident.getStatus(),
+                    reason + ": priority stays " + assessment.priority() + ". " + assessment.explanation());
+        }
+    }
+
+    private static String describeAssessment(Impact impact, Urgency urgency, int affectedUsers) {
+        return "impact " + impact + ", urgency " + urgency + ", " + affectedUsers
+                + (affectedUsers == 1 ? " user" : " users");
+    }
+
+    private static Long idOf(Category category) {
+        return category == null ? null : category.getId();
+    }
+
+    private static String nameOf(Category category) {
+        return category == null ? "none" : category.getName();
+    }
+
+    /** What the active priority strategy would say, for the live preview on the report form. Nothing is saved. */
+    @Transactional(readOnly = true)
+    public PriorityAssessment previewPriority(Long serviceId, Impact impact, Urgency urgency, int affectedUsers) {
+        ItService service = services.findById(serviceId).filter(ItService::isActive)
+                .orElseThrow(() -> new ResourceNotFoundException("IT service " + serviceId + " not found"));
+        Incident draft = new Incident("Preview", "Preview", null, service, impact, urgency, affectedUsers, now());
+        return priorityStrategies.getActive().assess(draft);
     }
 
     // Reporter actions
@@ -359,7 +481,7 @@ public class IncidentService {
         Incident incident = find(id);
         requireReporterOrAdmin(incident, user);
         IncidentStatus before = incident.getStatus();
-        incident.reopen();
+        incident.reopen(now());
         incident.addNote(user, NoteType.COMMENT, "Reopened: " + reason, now());
         publish(IncidentEventType.REOPENED, incident, user.getUsername(), before,
                 "Reopened by " + user.getFullName() + ": " + reason);
@@ -407,13 +529,18 @@ public class IncidentService {
     @Transactional(readOnly = true)
     public List<SimilarIncident> similarIncidents(Long id, User user) {
         Incident incident = getVisible(id, user);
-        return duplicateDetector.findSimilar(incident, incidents.findByStatusIn(IncidentStatus.UNRESOLVED));
+        // only incidents this user may open, so an employee never sees other people's reports
+        return duplicateDetector.findSimilar(incident, incidents.findByStatusIn(IncidentStatus.UNRESOLVED).stream()
+                .filter(user::canView).toList());
     }
 
     @Transactional(readOnly = true)
     public List<SuggestedResolution> suggestedResolutions(Long id, User user) {
         Incident incident = getVisible(id, user);
-        return resolutionSuggester.suggest(incident, incidents.findResolvedExcluding(incident.getId()));
+        // only fixes the reporter confirmed (a reopened incident's rejected fix is not offered)
+        List<Incident> confirmed = incidents.findByStatusInAndIdNot(
+                List.of(IncidentStatus.VERIFIED, IncidentStatus.CLOSED), incident.getId());
+        return resolutionSuggester.suggest(incident, confirmed.stream().filter(user::canView).toList());
     }
 
     @Transactional(readOnly = true)

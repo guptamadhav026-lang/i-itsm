@@ -41,6 +41,9 @@ class IncidentApiTest {
     @Autowired
     private MockMvc mvc;
 
+    @Autowired
+    private com.itsm.repository.AppSettingRepository settings;
+
     private String login(String username) throws Exception {
         String body = mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"" + username + "\",\"password\":\"" + PASSWORD + "\"}"))
@@ -51,6 +54,29 @@ class IncidentApiTest {
 
     private ResultActions postJson(String url, String token, String json) throws Exception {
         return mvc.perform(post(url).header("Authorization", token)
+                .contentType(MediaType.APPLICATION_JSON).content(json));
+    }
+
+    /** Id of the demo incident with this exact title (found through the admin search). */
+    private int incidentId(String title) throws Exception {
+        String body = mvc.perform(get("/api/incidents/search").param("keyword", title)
+                        .header("Authorization", login("kavita")))
+                .andReturn().getResponse().getContentAsString();
+        return JsonPath.<java.util.List<Integer>>read(body, "$[?(@.title == '" + title + "')].id").get(0);
+    }
+
+    private int report(String token, String title, String description, String service, String impact,
+                       String urgency, int users) throws Exception {
+        String body = postJson("/api/incidents", token, """
+                {"title":"%s","description":"%s","serviceId":%d,"impact":"%s","urgency":"%s","affectedUsers":%d}"""
+                .formatted(title, description, serviceId(token, service), impact, urgency, users))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return JsonPath.read(body, "$.id");
+    }
+
+    private ResultActions putJson(String url, String token, String json) throws Exception {
+        return mvc.perform(put(url).header("Authorization", token)
                 .contentType(MediaType.APPLICATION_JSON).content(json));
     }
 
@@ -313,5 +339,238 @@ class IncidentApiTest {
         postJson("/api/incidents", login("priya"), report.formatted("Office wifi not working", network))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.potentialDuplicateOf", is(reference)));
+    }
+
+    @Test
+    @DisplayName("TC48 Employees never see other people's incidents through 'similar incidents' or suggested fixes")
+    void intelligencePrivacy() throws Exception {
+        int priyas = incidentId("Unable to make payment");
+        String rohansReference = "INC%04d".formatted(incidentId("Payment application unavailable"));
+
+        mvc.perform(get("/api/incidents/" + priyas + "/similar").header("Authorization", login("priya")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].reference", not(hasItem(rohansReference))));
+        mvc.perform(get("/api/incidents/" + priyas + "/similar").header("Authorization", login("vikram")))
+                .andExpect(jsonPath("$[*].reference", hasItem(rohansReference)));
+        mvc.perform(get("/api/incidents/" + priyas + "/suggested-resolutions").header("Authorization", login("priya")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].reference", everyItem(is("INC%04d".formatted(
+                        incidentId("Payment gateway timeout at checkout"))))));
+    }
+
+    @Test
+    @DisplayName("TC49 A 4000-character note is saved in full; the audit line is shortened instead of failing")
+    void longTexts() throws Exception {
+        String rohan = login("rohan");
+        int id = report(rohan, "Laptop fan very loud", "The fan never stops", "Employee Laptops", "LOW", "LOW", 1);
+        String sneha = login("sneha");
+        String note = "x".repeat(4000);
+        postJson("/api/incidents/" + id + "/notes", sneha, "{\"text\":\"" + note + "\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notes[-1].text", is(note)));
+        postJson("/api/incidents/" + id + "/comments", rohan, "{\"text\":\"" + "y".repeat(3990) + "\"}")
+                .andExpect(status().isOk());
+        String audit = mvc.perform(get("/api/incidents/" + id + "/audit").header("Authorization", rohan))
+                .andReturn().getResponse().getContentAsString();
+        java.util.List<String> descriptions = JsonPath.read(audit, "$[*].description");
+        org.assertj.core.api.Assertions.assertThat(descriptions).allMatch(d -> d.length() <= 1000);
+    }
+
+    @Test
+    @DisplayName("TC50 Every API error is JSON with the right status: 404, 405, 415, 401, and clear 400 messages")
+    void errorResponses() throws Exception {
+        String rohan = login("rohan");
+        mvc.perform(get("/api/does-not-exist").header("Authorization", rohan))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.status", is(404)));
+        mvc.perform(delete("/api/incidents/1").header("Authorization", rohan))
+                .andExpect(status().isMethodNotAllowed()).andExpect(jsonPath("$.status", is(405)));
+        mvc.perform(post("/api/incidents/1/comments").header("Authorization", rohan)
+                        .contentType(MediaType.TEXT_PLAIN).content("hello"))
+                .andExpect(status().isUnsupportedMediaType());
+        mvc.perform(get("/api/incidents/search").param("status", "FOO").header("Authorization", rohan))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", is("'status' has an invalid value 'FOO'")));
+        mvc.perform(get("/api/incidents").header("Authorization", "Bearer not-a-real-token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status", is(401)));
+        // an old token left in the header does not block logging in again
+        mvc.perform(post("/api/auth/login").header("Authorization", "Bearer expired-or-forged")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"rohan\",\"password\":\"" + PASSWORD + "\"}"))
+                .andExpect(status().isOk());
+        postJson("/api/auth/register", "", """
+                {"username":"longpass","password":"%s","fullName":"Long Pass","email":"lp@itsm.local"}"""
+                .formatted("p".repeat(80)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.password", notNullValue()));
+    }
+
+    @Test
+    @DisplayName("TC51 A P1 report reaches the administrators at once (in-app and e-mail)")
+    void highPriorityReportReachesAdmins() throws Exception {
+        int id = report(login("rohan"), "Card payments rejected", "Every card payment is rejected",
+                "Payment Gateway", "CRITICAL", "CRITICAL", 300);
+        String subject = "INC%04d reported: Card payments rejected (P1)".formatted(id);
+        mvc.perform(get("/api/notifications").header("Authorization", login("kavita")))
+                .andExpect(jsonPath("$[?(@.subject == '" + subject + "')].channel", hasItem("IN_APP")))
+                .andExpect(jsonPath("$[?(@.subject == '" + subject + "')].channel", hasItem("EMAIL")));
+    }
+
+    @Test
+    @DisplayName("TC52 Reopening removes the rejected fix; feedback only after the fix is confirmed, and only once")
+    void reopenAndFeedback() throws Exception {
+        String rohan = login("rohan");
+        int id = report(rohan, "Mouse not detected", "The USB mouse is not detected", "Employee Laptops",
+                "LOW", "MEDIUM", 1);
+        String sneha = login("sneha");
+        postJson("/api/incidents/" + id + "/acknowledge", sneha, "").andExpect(status().isOk());
+        postJson("/api/incidents/" + id + "/start", sneha, "").andExpect(status().isOk());
+        postJson("/api/incidents/" + id + "/resolve", sneha, "{\"resolution\":\"Replugged it\"}")
+                .andExpect(status().isOk());
+        postJson("/api/incidents/" + id + "/feedback", rohan, "{\"rating\":5}").andExpect(status().isBadRequest());
+
+        postJson("/api/incidents/" + id + "/reopen", rohan, "{\"reason\":\"Still not detected\"}")
+                .andExpect(jsonPath("$.status", is("IN_PROGRESS")))
+                .andExpect(jsonPath("$.resolution").doesNotExist());
+        postJson("/api/incidents/" + id + "/resolve", sneha, "{\"resolution\":\"Replaced the USB port driver\"}")
+                .andExpect(status().isOk());
+        postJson("/api/incidents/" + id + "/verify", rohan, "").andExpect(status().isOk());
+        postJson("/api/incidents/" + id + "/feedback", rohan, "{\"rating\":4}")
+                .andExpect(jsonPath("$.feedbackRating", is(4)));
+        postJson("/api/incidents/" + id + "/feedback", rohan, "{\"rating\":1}").andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("TC53 Every re-assessment is in the history, also when the priority stays the same")
+    void reassessAudited() throws Exception {
+        String rohan = login("rohan");
+        int id = report(rohan, "Laptop speaker crackles", "Sound crackles", "Employee Laptops", "LOW", "LOW", 1);
+        postJson("/api/incidents/" + id + "/reassess", login("sneha"),
+                "{\"impact\":\"LOW\",\"urgency\":\"MEDIUM\",\"affectedUsers\":2}")
+                .andExpect(jsonPath("$.priority", is("P4")));
+        mvc.perform(get("/api/incidents/" + id + "/audit").header("Authorization", rohan))
+                .andExpect(jsonPath("$[*].action", hasItem("REASSESSED")));
+    }
+
+    @Test
+    @DisplayName("TC54 Correcting an incident: the reporter until work starts; the technician can re-classify it")
+    void editIncident() throws Exception {
+        String rohan = login("rohan");
+        int id = report(rohan, "Screen goes black", "My laptop screen goes black", "Employee Laptops",
+                "LOW", "MEDIUM", 1);
+        putJson("/api/incidents/" + id, rohan, "{\"title\":\"Laptop screen goes black after lunch\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title", is("Laptop screen goes black after lunch")));
+        putJson("/api/incidents/" + id, rohan, "{\"categoryId\":1}").andExpect(status().isForbidden());
+
+        String sneha = login("sneha");
+        postJson("/api/incidents/" + id + "/acknowledge", sneha, "").andExpect(status().isOk());
+        putJson("/api/incidents/" + id, rohan, "{\"title\":\"Too late to edit\"}").andExpect(status().isBadRequest());
+
+        String categories = mvc.perform(get("/api/catalog/categories").header("Authorization", sneha))
+                .andReturn().getResponse().getContentAsString();
+        Number software = JsonPath.<java.util.List<Number>>read(categories, "$[?(@.name == 'SOFTWARE')].id").get(0);
+        putJson("/api/incidents/" + id, sneha, "{\"categoryId\":" + software + "}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.category.name", is("SOFTWARE")));
+        mvc.perform(get("/api/incidents/" + id + "/audit").header("Authorization", rohan))
+                .andExpect(jsonPath("$[?(@.action == 'DETAILS_CHANGED')].description",
+                        hasItem(org.hamcrest.Matchers.containsString("category HARDWARE to SOFTWARE"))));
+    }
+
+    @Test
+    @DisplayName("TC55 User management: edit details, reset and change passwords, all in the audit log")
+    void userManagement() throws Exception {
+        String kavita = login("kavita");
+        String users = mvc.perform(get("/api/admin/users").header("Authorization", kavita))
+                .andReturn().getResponse().getContentAsString();
+        Number priya = JsonPath.<java.util.List<Number>>read(users, "$[?(@.username == 'priya')].id").get(0);
+
+        putJson("/api/admin/users/" + priya, kavita, "{\"fullName\":\"Priya N. Nair\",\"department\":\"Marketing\"}")
+                .andExpect(jsonPath("$.fullName", is("Priya N. Nair")))
+                .andExpect(jsonPath("$.department", is("Marketing")));
+        putJson("/api/admin/users/" + priya + "/password", kavita, "{\"newPassword\":\"temporary-123\"}")
+                .andExpect(status().isOk());
+
+        String priyaToken = "Bearer " + JsonPath.read(mvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"priya\",\"password\":\"temporary-123\"}"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(), "$.token");
+        putJson("/api/auth/password", priyaToken, "{\"currentPassword\":\"wrong-one\",\"newPassword\":\"my-own-pass-1\"}")
+                .andExpect(status().isBadRequest());
+        putJson("/api/auth/password", priyaToken,
+                "{\"currentPassword\":\"temporary-123\",\"newPassword\":\"my-own-pass-1\"}")
+                .andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/admin/audit").header("Authorization", kavita))
+                .andExpect(jsonPath("$[*].action", hasItem("USER_UPDATED")))
+                .andExpect(jsonPath("$[*].action", hasItem("PASSWORD_RESET")))
+                .andExpect(jsonPath("$[*].action", hasItem("PASSWORD_CHANGED")));
+    }
+
+    @Test
+    @DisplayName("TC56 A technician with open work cannot be deactivated; a deactivated account cannot open live updates")
+    void deactivation() throws Exception {
+        String kavita = login("kavita");
+        report(login("rohan"), "Router lights blinking red", "The office router blinks red", "Corporate Network",
+                "MEDIUM", "MEDIUM", 5);
+        String users = mvc.perform(get("/api/admin/users").header("Authorization", kavita))
+                .andReturn().getResponse().getContentAsString();
+        Number ananya = JsonPath.<java.util.List<Number>>read(users, "$[?(@.username == 'ananya')].id").get(0);
+        mvc.perform(put("/api/admin/users/" + ananya + "/active").param("active", "false")
+                        .header("Authorization", kavita))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", org.hamcrest.Matchers.containsString("Reassign")));
+
+        String created = postJson("/api/admin/users", kavita, """
+                {"role":"TECHNICIAN","username":"temp.tech","password":"password123","fullName":"Temp Tech",
+                 "email":"temp@itsm.local","skills":["network"]}""")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.skills[0]", is("NETWORK")))
+                .andReturn().getResponse().getContentAsString();
+        int tempId = JsonPath.read(created, "$.id");
+        String tempToken = login("temp.tech");
+        mvc.perform(put("/api/admin/users/" + tempId + "/active").param("active", "false")
+                        .header("Authorization", kavita))
+                .andExpect(jsonPath("$.active", is(false)));
+        mvc.perform(get("/api/live").header("Authorization", tempToken)).andExpect(status().isUnauthorized());
+        mvc.perform(put("/api/admin/users/" + tempId + "/active").param("active", "true")
+                .header("Authorization", kavita));
+        postJson("/api/admin/users", kavita, """
+                {"role":"TECHNICIAN","username":"bad.skill","password":"password123","fullName":"Bad Skill",
+                 "email":"bad@itsm.local","skills":["COFFEE"]}""")
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("TC57 The chosen strategy is saved and every switch is in the audit log")
+    void strategySaved() throws Exception {
+        String admin = login("kavita");
+        putJson("/api/admin/strategies/priority", admin, "{\"name\":\"ITIL_MATRIX\"}").andExpect(status().isOk());
+        org.assertj.core.api.Assertions.assertThat(settings.findById("priority-strategy"))
+                .hasValueSatisfying(s -> org.assertj.core.api.Assertions.assertThat(s.getValue()).isEqualTo("ITIL_MATRIX"));
+        postJson("/api/incidents/priority-preview", login("rohan"), """
+                {"serviceId":%d,"impact":"HIGH","urgency":"HIGH","affectedUsers":10}"""
+                .formatted(serviceId(admin, "Email")))
+                .andExpect(jsonPath("$.priority", is("P2")));            // ITIL: 3 + 3 = 6
+        mvc.perform(get("/api/admin/audit").header("Authorization", admin))
+                .andExpect(jsonPath("$[?(@.action == 'STRATEGY_CHANGED')].description",
+                        hasItem("Priority strategy changed from WEIGHTED to ITIL_MATRIX")));
+        putJson("/api/admin/strategies/priority", admin, "{\"name\":\"WEIGHTED\"}");   // back for the other tests
+    }
+
+    @Test
+    @DisplayName("TC58 Search: open incidents only, the user's own time zone, and % or _ are not wildcards")
+    void searchOptions() throws Exception {
+        String admin = login("kavita");
+        mvc.perform(get("/api/incidents/search").param("open", "true").header("Authorization", admin))
+                .andExpect(jsonPath("$[*].status", everyItem(org.hamcrest.Matchers.oneOf(
+                        "NEW", "CLASSIFIED", "ASSIGNED", "ACKNOWLEDGED", "IN_PROGRESS"))));
+        mvc.perform(get("/api/incidents/search").param("keyword", "_").header("Authorization", admin))
+                .andExpect(jsonPath("$.length()", is(0)));
+        mvc.perform(get("/api/incidents/search").param("createdFrom", "2020-01-01")
+                        .param("timeZone", "America/Los_Angeles").header("Authorization", admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()", org.hamcrest.Matchers.greaterThan(0)));
     }
 }

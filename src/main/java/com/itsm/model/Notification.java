@@ -40,8 +40,8 @@ public class Notification {
         this.recipient = recipient;
         this.channel = channel;
         this.incidentId = incidentId;
-        this.subject = subject;
-        this.message = message;
+        this.subject = AuditRecord.shorten(subject, 200);
+        this.message = AuditRecord.shorten(message, 2000);
         this.createdAt = createdAt;
     }
 

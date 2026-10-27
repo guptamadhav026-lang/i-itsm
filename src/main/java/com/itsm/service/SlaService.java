@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 /** Works out SLA deadlines and where an incident stands against them. */
 @Service
@@ -57,21 +58,49 @@ public class SlaService {
     public void applyDeadlines(Incident incident) {
         SlaPolicy policy = policyFor(incident);
         Instant start = incident.getCreatedAt();
-        incident.applySlaDeadlines(start.plus(policy.responseTime()), start.plus(policy.resolutionTime()));
+        incident.applySlaDeadlines(start, start.plus(policy.responseTime()), start.plus(policy.resolutionTime()));
     }
 
-    /** Share of the resolution window already used: 0.0 at creation, 1.0 at the deadline. */
+    /**
+     * After a change of priority or service the new targets count from that moment, so raising an old P4 to P1
+     * does not make it late at once. A response already given stays measured against the old deadline.
+     */
+    public void restartDeadlines(Incident incident, Instant now) {
+        SlaPolicy policy = policyFor(incident);
+        Instant response = incident.getAcknowledgedAt() != null ? incident.getResponseDeadline()
+                : now.plus(policy.responseTime());
+        incident.applySlaDeadlines(now, response, now.plus(policy.resolutionTime()));
+    }
+
+    /** Share of the resolution window already used: 0.0 when the targets started, 1.0 at the deadline. */
     public double elapsedFraction(Incident incident, Instant now) {
         if (incident.getResolutionDeadline() == null) {
             return 0.0;
         }
         Instant end = incident.isUnresolved() ? now : incident.getResolvedAt();
-        long total = Duration.between(incident.getCreatedAt(), incident.getResolutionDeadline()).toSeconds();
-        long used = Duration.between(incident.getCreatedAt(), end).toSeconds();
+        return fraction(incident.getSlaStartedAt(), incident.getResolutionDeadline(), end);
+    }
+
+    /** Share of the response window already used, for an incident nobody has acknowledged yet. */
+    public double responseElapsedFraction(Incident incident, Instant now) {
+        if (incident.getResponseDeadline() == null) {
+            return 0.0;
+        }
+        return fraction(incident.getSlaStartedAt(), incident.getResponseDeadline(), now);
+    }
+
+    private static double fraction(Instant start, Instant deadline, Instant at) {
+        long total = Duration.between(start, deadline).toSeconds();
+        long used = Duration.between(start, at).toSeconds();
         return total <= 0 ? 1.0 : Math.max(0.0, (double) used / total);
     }
 
     public SlaState stateOf(Incident incident, Instant now) {
+        return stateOf(incident, now, () -> policyFor(incident));
+    }
+
+    /** Same, with the policy looked up by the caller (lists cache them instead of one query per incident). */
+    public SlaState stateOf(Incident incident, Instant now, Supplier<SlaPolicy> policy) {
         if (incident.isSlaBreached()) {
             return SlaState.BREACHED;
         }
@@ -85,7 +114,7 @@ public class SlaService {
                 || (incident.getAcknowledgedAt() == null && now.isAfter(incident.getResponseDeadline()))) {
             return SlaState.BREACHED;   // the monitor will record it on its next run
         }
-        int threshold = policyFor(incident).getWarningThresholdPercent();
+        int threshold = policy.get().getWarningThresholdPercent();
         return elapsedFraction(incident, now) * 100 >= threshold ? SlaState.AT_RISK : SlaState.ON_TRACK;
     }
 
@@ -93,6 +122,12 @@ public class SlaService {
     public long minutesLeft(Incident incident, Instant now) {
         return incident.getResolutionDeadline() == null ? 0
                 : Duration.between(now, incident.getResolutionDeadline()).toMinutes();
+    }
+
+    /** Minutes left until the response deadline (negative once it has passed). */
+    public long minutesLeftToRespond(Incident incident, Instant now) {
+        return incident.getResponseDeadline() == null ? 0
+                : Duration.between(now, incident.getResponseDeadline()).toMinutes();
     }
 
     public boolean isWaitingForResponse(Incident incident) {

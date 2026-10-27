@@ -12,6 +12,7 @@ import com.itsm.service.IncidentSearchCriteria;
 import com.itsm.service.IncidentService;
 import com.itsm.service.SearchService;
 import com.itsm.strategy.assignment.ScoredTechnician;
+import com.itsm.strategy.priority.PriorityAssessment;
 import com.itsm.web.dto.AssignRequest;
 import com.itsm.web.dto.AuditRecordDto;
 import com.itsm.web.dto.CreateIncidentRequest;
@@ -19,9 +20,11 @@ import com.itsm.web.dto.FeedbackRequest;
 import com.itsm.web.dto.IncidentDetailDto;
 import com.itsm.web.dto.IncidentSummaryDto;
 import com.itsm.web.dto.NoteRequest;
+import com.itsm.web.dto.PriorityPreviewRequest;
 import com.itsm.web.dto.ReassessRequest;
 import com.itsm.web.dto.ReopenRequest;
 import com.itsm.web.dto.ResolveRequest;
+import com.itsm.web.dto.UpdateIncidentRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -32,6 +35,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -95,9 +99,11 @@ public class IncidentController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdTo,
             @RequestParam(required = false) SlaState slaState,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Boolean open,
+            @RequestParam(required = false) String timeZone,
             Authentication auth) {
         IncidentSearchCriteria criteria = new IncidentSearchCriteria(reference, status, priority, categoryId,
-                serviceId, technicianId, reporterId, createdFrom, createdTo, slaState, keyword);
+                serviceId, technicianId, reporterId, createdFrom, createdTo, slaState, keyword, open, timeZone);
         return views.summaries(searchService.search(criteria, user(auth)));
     }
 
@@ -105,6 +111,21 @@ public class IncidentController {
     @Operation(summary = "Full details of one incident")
     public IncidentDetailDto get(@PathVariable Long id, Authentication auth) {
         return views.detail(incidentService.getVisible(id, user(auth)));
+    }
+
+    @PutMapping("/{id}")
+    @Operation(summary = "Correct an incident: title and description (reporter, until a technician acknowledges it), "
+            + "category and service (assigned technician or admin, until it is resolved)")
+    public IncidentDetailDto update(@PathVariable Long id, @Valid @RequestBody UpdateIncidentRequest request,
+                                    Authentication auth) {
+        return views.detail(incidentService.update(id, user(auth), request));
+    }
+
+    @PostMapping("/priority-preview")
+    @Operation(summary = "The priority the active strategy would give, for the live preview on the report form")
+    public PriorityAssessment previewPriority(@Valid @RequestBody PriorityPreviewRequest request) {
+        return incidentService.previewPriority(request.serviceId(), request.impact(), request.urgency(),
+                request.affectedUsers());
     }
 
     @GetMapping("/{id}/audit")
