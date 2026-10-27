@@ -178,7 +178,7 @@ public class ReportService {
                 .collect(Collectors.groupingBy(key, TreeMap::new, Collectors.toList()));
         return groups.entrySet().stream()
                 .map(e -> new CountRow(e.getKey(), e.getValue().size(),
-                        e.getValue().stream().filter(i -> i.getStatus() != IncidentStatus.CLOSED).count(),
+                        e.getValue().stream().filter(Incident::isUnresolved).count(),
                         e.getValue().stream().filter(Incident::isSlaBreached).count()))
                 .sorted(Comparator.comparingLong(CountRow::total).reversed())
                 .toList();

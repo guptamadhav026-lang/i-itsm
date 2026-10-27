@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { getToken } from '../api/client'
+import { getToken, reportUnauthorized } from '../api/client'
 import type { LiveUpdate } from '../api/types'
 
 export type LiveStatus = 'connecting' | 'live' | 'offline'
@@ -8,7 +8,8 @@ export type LiveStatus = 'connecting' | 'live' | 'offline'
 /**
  * Opens the Server-Sent Events stream (GET /api/live) and keeps it open.
  * Each time the backend reports a change, the affected data is marked stale and React Query
- * re-loads it, so every open screen updates by itself. Reconnects automatically if the connection drops.
+ * re-loads it, so every open screen updates by itself. Reconnects automatically if the connection drops,
+ * and then re-loads everything, because changes made while it was offline were not sent.
  */
 export function useLiveUpdates(enabled: boolean, onUpdate?: (u: LiveUpdate) => void): LiveStatus {
   const queryClient = useQueryClient()
@@ -18,7 +19,9 @@ export function useLiveUpdates(enabled: boolean, onUpdate?: (u: LiveUpdate) => v
     if (!enabled) return
     let stopped = false
     let controller: AbortController | null = null
+    let timer: ReturnType<typeof setTimeout> | undefined
     let retryDelay = 1000
+    let wasOffline = false
 
     const handle = (update: LiveUpdate) => {
       queryClient.invalidateQueries({ queryKey: ['incidents'] })
@@ -30,6 +33,7 @@ export function useLiveUpdates(enabled: boolean, onUpdate?: (u: LiveUpdate) => v
     }
 
     const connect = async () => {
+      if (stopped) return
       controller = new AbortController()
       setStatus('connecting')
       try {
@@ -37,9 +41,20 @@ export function useLiveUpdates(enabled: boolean, onUpdate?: (u: LiveUpdate) => v
           headers: { Authorization: `Bearer ${getToken()}`, Accept: 'text/event-stream' },
           signal: controller.signal,
         })
+        if (response.status === 401) {
+          // the login expired or the account was deactivated: retrying cannot help, so log out
+          stopped = true
+          setStatus('offline')
+          reportUnauthorized()
+          return
+        }
         if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`)
         setStatus('live')
         retryDelay = 1000
+        if (wasOffline) {
+          queryClient.invalidateQueries()
+          wasOffline = false
+        }
         await readEvents(response.body, (event, data) => {
           if (event === 'incident') handle(JSON.parse(data) as LiveUpdate)
         })
@@ -48,7 +63,8 @@ export function useLiveUpdates(enabled: boolean, onUpdate?: (u: LiveUpdate) => v
       }
       if (!stopped) {
         setStatus('offline')
-        setTimeout(connect, retryDelay)
+        wasOffline = true
+        timer = setTimeout(connect, retryDelay)
         retryDelay = Math.min(retryDelay * 2, 30_000)
       }
     }
@@ -56,6 +72,7 @@ export function useLiveUpdates(enabled: boolean, onUpdate?: (u: LiveUpdate) => v
     connect()
     return () => {
       stopped = true
+      clearTimeout(timer)
       controller?.abort()
     }
     // onUpdate is intentionally not a dependency: reconnecting on every render would be wasteful

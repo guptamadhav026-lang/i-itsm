@@ -1,4 +1,4 @@
-import { forwardRef, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { Children, cloneElement, forwardRef, isValidElement, useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
 import { cn } from '../../lib/cn'
 
 const control =
@@ -16,20 +16,37 @@ interface FieldProps {
   className?: string
 }
 
-/** A label + control + hint/error, laid out consistently. */
+/**
+ * A label + control + hint/error, laid out consistently. When the control is the only child and has no id,
+ * it gets one, so clicking the label focuses it and screen readers read the label and the hint with it.
+ */
 export function Field({ label, htmlFor, hint, error, required, children, className }: FieldProps) {
+  const generated = useId()
+  const control = Children.count(children) === 1 && isValidElement<ControlProps>(children)
+    && FORM_CONTROLS.includes(children.type) ? children : null
+  const id = htmlFor ?? control?.props.id ?? (control ? generated : undefined)
+  const noteId = `${generated}-note`
+  const hasNote = !!(error || hint)
   return (
     <div className={cn('space-y-1.5', className)}>
-      <label htmlFor={htmlFor} className="block text-sm font-medium text-fg">
+      <label htmlFor={id} className="block text-sm font-medium text-fg">
         {label}
         {required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
-      {children}
-      {error ? <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
-        : hint ? <p className="text-xs text-muted">{hint}</p> : null}
+      {control
+        ? cloneElement(control, {
+            id,
+            'aria-describedby': hasNote ? noteId : control.props['aria-describedby'],
+            'aria-invalid': error ? true : control.props['aria-invalid'],
+          })
+        : children}
+      {error ? <p id={noteId} className="text-xs text-red-600 dark:text-red-400">{error}</p>
+        : hint ? <p id={noteId} className="text-xs text-muted">{hint}</p> : null}
     </div>
   )
 }
+
+interface ControlProps { id?: string; 'aria-describedby'?: string; 'aria-invalid'?: boolean | 'true' | 'false' }
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   ({ className, ...rest }, ref) => <input ref={ref} className={cn(control, 'h-10', className)} {...rest} />,
@@ -49,6 +66,9 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
   ),
 )
 Select.displayName = 'Select'
+
+/** The controls Field links to its label (anything else, such as a row of buttons, is left as it is). */
+const FORM_CONTROLS: unknown[] = ['input', 'select', 'textarea', Input, Textarea, Select]
 
 interface SegmentedProps<T extends string> {
   value: T

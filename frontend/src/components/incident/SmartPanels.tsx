@@ -78,18 +78,23 @@ export function SimilarIncidentsPanel({ incidentId, onUseResolution, showResolut
 }
 
 /** Intelligent feature D: technicians ranked by the SMART strategy, with the reasons behind each score. */
-export function RecommendedTechnicians({ incidentId, currentId, onAssign, assigning }: {
+export function RecommendedTechnicians({ incidentId, currentId, onAssign, assigning, disabled }: {
   incidentId: number
   currentId: number | null
   onAssign: (t: ScoredTechnician) => void
+  /** the technician being assigned right now (their button shows a spinner) */
   assigning: number | null
+  /** while any change is being saved, so a second click cannot start another */
+  disabled: boolean
 }) {
   const { data, isLoading } = useQuery({
     queryKey: ['incident', incidentId, 'recommended'],
     queryFn: () => incidentApi.recommended(incidentId),
   })
   if (isLoading) return <Skeleton className="h-24" />
-  if (!data?.length) return <p className="text-sm text-muted">No technician has free capacity right now.</p>
+  if (!data?.length) {
+    return <p className="text-sm text-muted">No technician is free right now: everyone is away or at their limit of active incidents.</p>
+  }
   const best = data[0].score
   return (
     <ul className="space-y-2">
@@ -110,7 +115,7 @@ export function RecommendedTechnicians({ incidentId, currentId, onAssign, assign
             {t.technicianId === currentId ? (
               <span className="text-xs font-medium text-muted">Current</span>
             ) : (
-              <Button size="sm" variant={i === 0 ? 'primary' : 'secondary'} loading={assigning === t.technicianId} onClick={() => onAssign(t)}>Assign</Button>
+              <Button size="sm" variant={i === 0 ? 'primary' : 'secondary'} loading={assigning === t.technicianId} disabled={disabled} onClick={() => onAssign(t)}>Assign</Button>
             )}
           </div>
           <p className="mt-2 text-xs text-muted">{t.reasons}</p>

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { adminApi } from '../../api/endpoints'
+import { errorText } from '../../api/client'
 import type { Strategy } from '../../api/types'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { ErrorState, PageHeader, PageLoader } from '../../components/ui/misc'
@@ -20,16 +21,18 @@ export function StrategiesPage() {
   const setAssignment = useMutation({
     mutationFn: adminApi.setAssignmentStrategy,
     onSuccess: (list) => { queryClient.setQueryData(['admin', 'strategies', 'assignment'], list); toast.success(`Assignment strategy: ${strategyLabel(list.find((s) => s.active)!.name)}`) },
+    onError: (e) => toast.error('Could not change the strategy', errorText(e)),
   })
   const setPriority = useMutation({
     mutationFn: adminApi.setPriorityStrategy,
     onSuccess: (list) => { queryClient.setQueryData(['admin', 'strategies', 'priority'], list); toast.success(`Priority strategy: ${strategyLabel(list.find((s) => s.active)!.name)}`) },
+    onError: (e) => toast.error('Could not change the strategy', errorText(e)),
   })
 
   return (
     <div>
       <PageHeader title="Strategies"
-        subtitle="Choose the algorithms the system uses. New incidents use the new choice immediately." />
+        subtitle="Choose the algorithms the system uses. New incidents use the new choice immediately, and it is kept after a restart." />
       <div className="grid gap-5 lg:grid-cols-2">
         <Card>
           <CardHeader title="Technician assignment" subtitle="Who gets a new incident" />

@@ -46,7 +46,9 @@ export function SlaCountdown({ start, deadline, stoppedAt, label, breached, warn
       </div>
       {stoppedAt && (
         <p className="mt-1 text-[11px] text-faint">
-          took {formatAverage((at - startMs) / 60_000)} of {formatMinutes((endMs - startMs) / 60_000)} allowed
+          {/* rounded towards the result, so a target met with seconds to spare never reads "took 1 h of 1 h" as a miss */}
+          took {formatAverage(late ? Math.ceil((at - startMs) / 60_000) : Math.floor((at - startMs) / 60_000))} of{' '}
+          {formatMinutes((endMs - startMs) / 60_000)} allowed
         </p>
       )}
     </div>

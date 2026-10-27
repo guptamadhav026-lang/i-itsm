@@ -53,7 +53,10 @@ export const EVENT_LABEL: Record<EventType, string> = {
   CLASSIFIED: 'Classified',
   PRIORITY_CALCULATED: 'Priority calculated',
   PRIORITY_CHANGED: 'Priority changed',
+  REASSESSED: 'Priority checked again',
+  DETAILS_CHANGED: 'Details changed',
   ASSIGNED: 'Assigned',
+  ASSIGNMENT_FAILED: 'No technician free',
   ACKNOWLEDGED: 'Acknowledged',
   INVESTIGATION_STARTED: 'Investigation started',
   NOTE_ADDED: 'Note added',
@@ -68,7 +71,23 @@ export const EVENT_LABEL: Record<EventType, string> = {
   SLA_WARNING: 'SLA warning',
   SLA_VIOLATED: 'SLA violated',
   ESCALATED: 'Escalated',
+  USER_CREATED: 'User created',
+  USER_UPDATED: 'User changed',
+  USER_ACTIVATED: 'User activated',
+  USER_DEACTIVATED: 'User deactivated',
+  PASSWORD_RESET: 'Password reset',
+  PASSWORD_CHANGED: 'Password changed',
+  SERVICE_CHANGED: 'Service changed',
+  CATEGORY_CHANGED: 'Category changed',
+  SLA_POLICY_CHANGED: 'SLA targets changed',
+  STRATEGY_CHANGED: 'Strategy changed',
 }
+
+/** Administration events belong to no incident; the audit log can filter on them. */
+export const ADMIN_EVENTS: EventType[] = [
+  'USER_CREATED', 'USER_UPDATED', 'USER_ACTIVATED', 'USER_DEACTIVATED', 'PASSWORD_RESET', 'PASSWORD_CHANGED',
+  'SERVICE_CHANGED', 'CATEGORY_CHANGED', 'SLA_POLICY_CHANGED', 'STRATEGY_CHANGED',
+]
 
 const dateTime = new Intl.DateTimeFormat(undefined, {
   day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',

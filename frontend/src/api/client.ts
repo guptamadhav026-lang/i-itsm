@@ -36,6 +36,10 @@ let onUnauthorized: () => void = () => {}
 export function setUnauthorizedHandler(handler: () => void) {
   onUnauthorized = handler
 }
+/** For calls made without request() (the live-update stream) that get a 401 */
+export function reportUnauthorized() {
+  if (getToken()) onUnauthorized()
+}
 
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE'
 
@@ -63,7 +67,8 @@ export async function request<T>(method: Method, path: string, body?: unknown): 
   if (response.status === 401 && token && !path.startsWith('/api/auth/login')) {
     onUnauthorized()
   }
-  if (response.status === 204) return undefined as T
+  // 204 No Content: there is no body (for example "no category matched"), so callers get null
+  if (response.status === 204) return null as T
 
   const text = await response.text()
   const data = text ? safeJson(text) : undefined
@@ -73,6 +78,27 @@ export async function request<T>(method: Method, path: string, body?: unknown): 
     throw new ApiError(response.status, message, err?.fieldErrors)
   }
   return data as T
+}
+
+/**
+ * The text to show for a failed call: the server's message, plus what is wrong with each field
+ * when a form was refused ("Title: size must be between 5 and 150").
+ */
+export function errorText(error: unknown): string {
+  if (!(error instanceof Error)) return 'Something went wrong'
+  if (error instanceof ApiError) {
+    const fields = Object.entries(error.fieldErrors)
+    if (fields.length > 0) {
+      return fields.map(([field, problem]) => `${fieldLabel(field)}: ${problem}`).join('. ')
+    }
+  }
+  return error.message
+}
+
+/** "affectedUsers" -> "Affected users", "skills[]" -> "Skills" */
+function fieldLabel(field: string): string {
+  const words = field.replace(/\[.*?\]|<.*?>/g, '').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()
+  return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
 function safeJson(text: string): unknown {

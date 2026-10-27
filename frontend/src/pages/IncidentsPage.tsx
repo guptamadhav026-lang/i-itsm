@@ -12,10 +12,19 @@ import { ErrorState, PageHeader, Skeleton } from '../components/ui/misc'
 import { IncidentTable } from '../components/incident/IncidentTable'
 import { categoryLabel, PRIORITY_LABEL, SLA_LABEL, STATUS_LABEL } from '../lib/format'
 
-const FILTER_KEYS = ['keyword', 'reference', 'status', 'priority', 'slaState', 'serviceId', 'categoryId', 'technicianId', 'createdFrom', 'createdTo'] as const
+const FILTER_KEYS = ['keyword', 'reference', 'status', 'open', 'priority', 'slaState', 'serviceId', 'categoryId', 'technicianId', 'createdFrom', 'createdTo'] as const
+
+/** The browser's time zone, so "reported from 1 Nov" means 1 Nov where the user is */
+const TIME_ZONE = (() => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone
+  } catch {
+    return undefined
+  }
+})()
 
 /**
- * Search and filter incidents with 10 criteria.
+ * Search and filter incidents with 11 criteria.
  * Filters live in the URL, so a filtered list can be bookmarked or shared.
  * Employees automatically only get their own incidents (enforced by the backend).
  */
@@ -24,11 +33,12 @@ export function IncidentsPage() {
   const [params, setParams] = useSearchParams()
 
   const criteria = useMemo<SearchCriteria>(() => {
-    const c: Record<string, string | number> = {}
+    const c: Record<string, string | number | boolean> = {}
     for (const key of FILTER_KEYS) {
       const v = params.get(key)
-      if (v) c[key] = key.endsWith('Id') ? Number(v) : v
+      if (v) c[key] = key.endsWith('Id') ? Number(v) : key === 'open' ? v === 'true' : v
     }
+    if (TIME_ZONE && (c.createdFrom || c.createdTo)) c.timeZone = TIME_ZONE
     return c as SearchCriteria
   }, [params])
 
@@ -45,6 +55,15 @@ export function IncidentsPage() {
     const next = new URLSearchParams(params)
     if (value) next.set(key, value)
     else next.delete(key)
+    setParams(next, { replace: true })
+  }
+  /** "Open" (anything not resolved yet) is a status choice on screen, but its own filter in the URL */
+  const setStatus = (value: string) => {
+    const next = new URLSearchParams(params)
+    next.delete('status')
+    next.delete('open')
+    if (value === 'OPEN') next.set('open', 'true')
+    else if (value) next.set('status', value)
     setParams(next, { replace: true })
   }
   const active = FILTER_KEYS.filter((k) => params.get(k)).length
@@ -72,8 +91,9 @@ export function IncidentsPage() {
             key={`r${params.get('reference') ?? ''}`}
             onKeyDown={(e) => e.key === 'Enter' && set('reference', (e.target as HTMLInputElement).value.trim())}
             onBlur={(e) => e.target.value.trim() !== (params.get('reference') ?? '') && set('reference', e.target.value.trim())} />
-          <Select aria-label="Status" value={params.get('status') ?? ''} onChange={(e) => set('status', e.target.value)}>
+          <Select aria-label="Status" value={params.get('open') === 'true' ? 'OPEN' : params.get('status') ?? ''} onChange={(e) => setStatus(e.target.value)}>
             <option value="">Any status</option>
+            <option value="OPEN">Open (not resolved yet)</option>
             {STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
           </Select>
           <Select aria-label="Priority" value={params.get('priority') ?? ''} onChange={(e) => set('priority', e.target.value)}>

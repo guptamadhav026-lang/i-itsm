@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { catalogApi, incidentApi } from '../api/endpoints'
-import { ApiError } from '../api/client'
-import { LEVELS, type IncidentDetail, type Level, type Priority, type SlaPolicy } from '../api/types'
+import { ApiError, errorText } from '../api/client'
+import { LEVELS, type IncidentDetail, type Level, type SlaPolicy } from '../api/types'
 import { Button } from '../components/ui/Button'
 import { Card, CardBody, CardHeader } from '../components/ui/Card'
 import { Field, Input, Segmented, Select, Textarea } from '../components/ui/Field'
@@ -12,16 +12,6 @@ import { useToast } from '../components/ui/Toast'
 import { PriorityBadge } from '../components/incident/badges'
 import { useServiceStatus } from '../components/incident/ServiceStatus'
 import { categoryLabel, formatDateTime, formatMinutes, LEVEL_LABEL, PRIORITY_LABEL } from '../lib/format'
-
-const levelWeight: Record<Level, number> = { LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4 }
-
-/** Same formula as WeightedPriorityStrategy on the backend, used only to preview the result while typing. */
-export function estimatePriority(impact: Level, urgency: Level, criticality: number, users: number): { score: number; priority: Priority } {
-  const factor = users >= 100 ? 1.5 : users >= 20 ? 1.25 : users >= 5 ? 1.1 : 1
-  const score = levelWeight[impact] * levelWeight[urgency] * criticality * factor
-  const priority: Priority = score >= 40 ? 'P1' : score >= 20 ? 'P2' : score >= 8 ? 'P3' : 'P4'
-  return { score, priority }
-}
 
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = useState(value)
@@ -59,16 +49,21 @@ export function ReportIncidentPage() {
     staleTime: 60_000,
   })
 
-  const service = services.data?.find((s) => String(s.id) === serviceId)
   const sla = useQuery({
     queryKey: ['catalog', 'sla', serviceId],
     queryFn: () => catalogApi.serviceSla(Number(serviceId)),
     enabled: !!serviceId,
   })
-  const estimate = useMemo(
-    () => service ? estimatePriority(impact, urgency, service.businessCriticality, affectedUsers || 1) : null,
-    [service, impact, urgency, affectedUsers],
-  )
+  // Asks the server, so the preview uses whichever priority strategy the administrator selected
+  const users = useDebounced(affectedUsers || 1, 300)
+  const preview = useQuery({
+    queryKey: ['priority-preview', serviceId, impact, urgency, users],
+    queryFn: () => incidentApi.previewPriority(Number(serviceId), impact, urgency, users),
+    enabled: !!serviceId,
+    placeholderData: (previous) => previous,
+    staleTime: 60_000,
+  })
+  const estimate = serviceId ? preview.data : undefined
 
   const create = useMutation({
     mutationFn: incidentApi.create,
@@ -79,7 +74,7 @@ export function ReportIncidentPage() {
     },
     onError: (e) => {
       if (e instanceof ApiError) setErrors(e.fieldErrors)
-      toast.error('Could not report the incident', (e as Error).message)
+      toast.error('Could not report the incident', errorText(e))
     },
   })
 
@@ -124,7 +119,7 @@ export function ReportIncidentPage() {
               </Field>
               <Field label="Category" htmlFor="category" hint={categoryId ? undefined : 'Leave on Automatic to have it picked from your text'}>
                 <Select id="category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-                  <option value="">Automatic{suggested ? ` (${categoryLabel(suggested.categoryName)})` : ''}</option>
+                  <option value="">Automatic{suggested ? ` (${categoryLabel(suggested.categoryName)})` : text.length >= 4 && suggestion.isSuccess ? ' (no match yet)' : ''}</option>
                   {categories.data?.map((c) => <option key={c.id} value={c.id}>{categoryLabel(c.name)}</option>)}
                 </Select>
               </Field>
@@ -182,18 +177,22 @@ export function ReportIncidentPage() {
                 {categoryId
                   ? <span className="font-medium text-fg">{categoryLabel(categories.data?.find((c) => String(c.id) === categoryId)?.name)}</span>
                   : suggested
-                    ? <span><span className="font-medium text-fg">{categoryLabel(suggested.categoryName)}</span><span className="block text-xs text-muted">matched: {suggested.matchedKeywords.join(', ')}</span></span>
-                    : <span className="text-faint">Type a few words first</span>}
+                    ? <span><span className="font-medium text-fg">{categoryLabel(suggested.categoryName)}</span>
+                        <span className="block text-xs text-muted">
+                          {suggested.matchedKeywords.length ? `matched: ${suggested.matchedKeywords.join(', ')}` : `chosen by ${suggested.source}`}
+                        </span></span>
+                    : text.length >= 4 && suggestion.isSuccess
+                      ? <span className="text-muted">No keyword matched yet. A technician can set the category later.</span>
+                      : <span className="text-faint">Type a few words first</span>}
               </PreviewRow>
-              <PreviewRow label="Priority (estimate)">
+              <PreviewRow label="Priority">
                 {estimate ? (
                   <span>
                     <PriorityBadge priority={estimate.priority} />
-                    <span className="mt-1 block font-mono text-[11px] text-muted">
-                      {levelWeight[impact]} x {levelWeight[urgency]} x {service!.businessCriticality} x users = {estimate.score.toFixed(1)}
-                    </span>
+                    <span className="mt-1 block font-mono text-[11px] leading-relaxed text-muted">{estimate.explanation}</span>
                   </span>
-                ) : <span className="text-faint">Choose a service</span>}
+                ) : preview.isError ? <span className="text-muted">Worked out when you submit</span>
+                  : <span className="text-faint">Choose a service</span>}
               </PreviewRow>
               <PreviewRow label="SLA">
                 {estimate ? <span className="text-fg">{slaText(sla.data?.find((p) => p.priority === estimate.priority))}</span> : <span className="text-faint">-</span>}
@@ -204,7 +203,7 @@ export function ReportIncidentPage() {
             </CardBody>
           </Card>
           <p className="px-1 text-xs text-faint">
-            The final priority comes from the server, using the priority strategy the administrator has selected.
+            Worked out with the priority strategy the administrator selected. It is calculated again when you submit, and a technician can re-assess it later.
           </p>
         </div>
       </div>
@@ -239,7 +238,7 @@ function ReportedSummary({ incident, onAnother }: { incident: IncidentDetail; on
     ['Resolve by', formatDateTime(incident.resolutionDeadline)],
     ['Technician', incident.assignedTechnician
       ? `${incident.assignedTechnician.fullName} (notified)`
-      : 'Nobody with free capacity right now. An administrator will assign it.'],
+      : 'Not assigned yet. It is offered to a free technician again every minute, and an administrator can also assign it.'],
   ]
   return (
     <div className="mx-auto max-w-2xl">

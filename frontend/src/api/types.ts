@@ -9,10 +9,16 @@ export type IncidentStatus =
 export type SlaState = 'ON_TRACK' | 'AT_RISK' | 'BREACHED' | 'MET'
 export type EscalationLevel = 'NONE' | 'TEAM_LEAD' | 'SYSTEM_ADMINISTRATOR' | 'IT_MANAGER'
 export type NoteType = 'INVESTIGATION' | 'INFO_REQUEST' | 'INFO_RESPONSE' | 'COMMENT'
-export type EventType =
-  | 'CREATED' | 'CLASSIFIED' | 'PRIORITY_CALCULATED' | 'PRIORITY_CHANGED' | 'ASSIGNED' | 'ACKNOWLEDGED'
-  | 'INVESTIGATION_STARTED' | 'NOTE_ADDED' | 'INFO_REQUESTED' | 'INFO_PROVIDED' | 'RESOLVED' | 'REOPENED'
-  | 'VERIFIED' | 'CLOSED' | 'FEEDBACK_GIVEN' | 'DUPLICATE_DETECTED' | 'SLA_WARNING' | 'SLA_VIOLATED' | 'ESCALATED'
+export type IncidentEventType =
+  | 'CREATED' | 'CLASSIFIED' | 'PRIORITY_CALCULATED' | 'PRIORITY_CHANGED' | 'REASSESSED' | 'DETAILS_CHANGED'
+  | 'ASSIGNED' | 'ASSIGNMENT_FAILED' | 'ACKNOWLEDGED' | 'INVESTIGATION_STARTED' | 'NOTE_ADDED' | 'INFO_REQUESTED'
+  | 'INFO_PROVIDED' | 'RESOLVED' | 'REOPENED' | 'VERIFIED' | 'CLOSED' | 'FEEDBACK_GIVEN' | 'DUPLICATE_DETECTED'
+  | 'SLA_WARNING' | 'SLA_VIOLATED' | 'ESCALATED'
+/** Changes an administrator (or a user to their own password) makes; these have no incident. */
+export type AdminEventType =
+  | 'USER_CREATED' | 'USER_UPDATED' | 'USER_ACTIVATED' | 'USER_DEACTIVATED' | 'PASSWORD_RESET' | 'PASSWORD_CHANGED'
+  | 'SERVICE_CHANGED' | 'CATEGORY_CHANGED' | 'SLA_POLICY_CHANGED' | 'STRATEGY_CHANGED'
+export type EventType = IncidentEventType | AdminEventType
 
 export const STATUS_ORDER: IncidentStatus[] = [
   'NEW', 'CLASSIFIED', 'ASSIGNED', 'ACKNOWLEDGED', 'IN_PROGRESS', 'RESOLVED', 'VERIFIED', 'CLOSED',
@@ -40,6 +46,12 @@ export interface UserRef {
   id: number
   username: string
   fullName: string
+}
+
+/** Settings the login page needs before anyone is logged in. */
+export interface LoginOptions {
+  /** true while the demo accounts are loaded, so the page can list them */
+  demoAccounts: boolean
 }
 
 export interface LoginResponse {
@@ -117,12 +129,16 @@ export interface IncidentDetail {
   resolvedAt: string | null
   verifiedAt: string | null
   closedAt: string | null
+  /** When the SLA clock started: the report time, or later if the targets were reset (priority raised) */
+  slaStartedAt: string | null
   responseDeadline: string | null
   resolutionDeadline: string | null
   slaState: SlaState
   minutesToResolutionDeadline: number
   /** true when the service has its own SLA targets for this priority */
   serviceSlaPolicy: boolean
+  /** The SLA warning threshold for this incident, e.g. 75 (%) */
+  slaWarningPercent: number
   responseBreached: boolean
   resolutionBreached: boolean
   escalationLevel: EscalationLevel
@@ -140,8 +156,9 @@ export interface AuditRecord {
   timestamp: string
   actor: string
   action: EventType
-  incidentId: number
-  incidentReference: string
+  /** null for administration changes, which belong to no incident */
+  incidentId: number | null
+  incidentReference: string | null
   previousStatus: IncidentStatus | null
   newStatus: IncidentStatus | null
   description: string
@@ -181,6 +198,13 @@ export interface SimilarIncident {
   title: string
   status: IncidentStatus
   score: number
+}
+
+/** What the active priority strategy says for the values on the report form. */
+export interface PriorityAssessment {
+  priority: Priority
+  score: number
+  explanation: string
 }
 
 export interface SuggestedResolution {
@@ -294,6 +318,10 @@ export interface SearchCriteria {
   createdTo?: string
   slaState?: SlaState
   keyword?: string
+  /** only incidents that are not resolved yet */
+  open?: boolean
+  /** IANA name such as "Asia/Kolkata", so "created from/to" dates match the user's own calendar */
+  timeZone?: string
 }
 
 export interface ServiceStatus {

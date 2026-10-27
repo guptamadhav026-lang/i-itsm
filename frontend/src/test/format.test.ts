@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { categoryLabel, dayLabel, formatCountdown, formatMinutes, greeting, humanize, initials, strategyLabel, timeAgo } from '../lib/format'
+import { ADMIN_EVENTS, categoryLabel, dayLabel, formatCountdown, formatMinutes, greeting, humanize, initials, strategyLabel, timeAgo, EVENT_LABEL } from '../lib/format'
 
 describe('format helpers', () => {
   it('formats minutes for people', () => {
@@ -40,5 +40,14 @@ describe('format helpers', () => {
     expect(dayLabel(new Date(2026, 9, 21, 23, 0).toISOString(), now)).toBe('Yesterday')
     expect(greeting(new Date(2026, 9, 22, 9))).toBe('Good morning')
     expect(greeting(new Date(2026, 9, 22, 19))).toBe('Good evening')
+  })
+})
+
+describe('event labels', () => {
+  it('has a readable label for every incident and administration event', () => {
+    for (const label of Object.values(EVENT_LABEL)) expect(label).toMatch(/^[A-Z]/)
+    expect(EVENT_LABEL.ASSIGNMENT_FAILED).toBe('No technician free')
+    expect(ADMIN_EVENTS).toContain('STRATEGY_CHANGED')
+    expect(ADMIN_EVENTS).not.toContain('CREATED')
   })
 })

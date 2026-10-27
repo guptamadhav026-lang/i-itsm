@@ -4,6 +4,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
 import { useAuth, useUser } from '../auth/AuthContext'
 import { adminApi, incidentApi, reportApi, technicianApi } from '../api/endpoints'
+import { errorText } from '../api/client'
 import { PRIORITIES, STATUS_ORDER, type IncidentSummary, type Priority, type User } from '../api/types'
 import { Button } from '../components/ui/Button'
 import { Card, CardBody, CardHeader, CardLink } from '../components/ui/Card'
@@ -48,6 +49,7 @@ function EmployeeDashboard({ user }: { user: User }) {
   const done = data.filter((i) => !isOpen(i))
   const questions = open.filter((i) => i.awaitingReporterInfo)
   const toVerify = data.filter((i) => i.status === 'RESOLVED')
+  const toClose = data.filter((i) => i.status === 'VERIFIED')
 
   return (
     <div>
@@ -60,16 +62,18 @@ function EmployeeDashboard({ user }: { user: User }) {
         actions={<Link to="/incidents/new"><Button icon={<Plus className="size-4" />}>Report a problem</Button></Link>}
       />
 
-      {(questions.length > 0 || toVerify.length > 0) && (
+      {(questions.length > 0 || toVerify.length > 0 || toClose.length > 0) && (
         <Card className="mb-6 border-amber-300 dark:border-amber-800">
-          <CardHeader title="Waiting for you" subtitle="The technician can't continue until you answer." />
+          <CardHeader title="Waiting for you" subtitle="These incidents need an answer or a check from you before they can move on." />
           <ul className="divide-y divide-line border-t border-line">
             {questions.map((i) => (
-              <ActionRow key={`q${i.id}`} incident={i} cta="Answer"
-                text={`${i.assignedTechnician?.fullName ?? 'The technician'} asked you a question`} />
+              <ActionRow key={`q${i.id}`} incident={i} cta="Answer" text="The IT team asked you a question about it" />
             ))}
             {toVerify.map((i) => (
               <ActionRow key={`v${i.id}`} incident={i} cta="Check the fix" text="Marked as fixed. Does it work for you now?" />
+            ))}
+            {toClose.map((i) => (
+              <ActionRow key={`c${i.id}`} incident={i} cta="Close it" text="You confirmed the fix. Close it, and rate the help if you like." />
             ))}
           </ul>
         </Card>
@@ -173,7 +177,7 @@ function TechnicianDashboard({ user }: { user: User }) {
       await refresh()
       toast.success(u.available ? 'You will get new incidents again' : 'You will not get new incidents for now')
     },
-    onError: (e) => toast.error('Could not change availability', (e as Error).message),
+    onError: (e) => toast.error('Could not change availability', errorText(e)),
   })
 
   const active = data.filter((i) => ['ASSIGNED', 'ACKNOWLEDGED', 'IN_PROGRESS'].includes(i.status))
@@ -292,9 +296,9 @@ function AdminDashboard({ user }: { user: User }) {
       )}
 
       <StatRow>
-        <Stat label="Open incidents" value={o?.unresolvedIncidents ?? '-'} hint={o && `${o.totalIncidents} reported in total`} onClick={() => navigate('/incidents')} />
+        <Stat label="Open incidents" value={o?.unresolvedIncidents ?? '-'} hint={o && `${o.totalIncidents} reported in total`} onClick={() => navigate('/incidents?open=true')} />
         <Stat label="Critical (P1) open" value={o?.criticalOpenIncidents ?? '-'} tone={o?.criticalOpenIncidents ? 'danger' : 'default'}
-          onClick={() => navigate('/incidents?priority=P1')} />
+          onClick={() => navigate('/incidents?priority=P1&open=true')} />
         <Stat label="Without a technician" value={all.data ? unassigned.length : '-'} hint={unassigned.length ? 'need a manual assignment' : 'everything has an owner'}
           tone={unassigned.length ? 'warning' : 'default'} onClick={() => navigate('/incidents?status=CLASSIFIED')} />
         <Stat label="SLA breaches" value={o?.slaViolations ?? '-'} hint="open and closed incidents" tone={o?.slaViolations ? 'warning' : 'default'}

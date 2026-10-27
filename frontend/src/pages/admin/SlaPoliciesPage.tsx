@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trash2 } from 'lucide-react'
 import { adminApi, type SlaTargets } from '../../api/endpoints'
+import { errorText } from '../../api/client'
 import { PRIORITIES, type Priority, type SlaPolicy } from '../../api/types'
 import { Button } from '../../components/ui/Button'
 import { Card, CardHeader } from '../../components/ui/Card'
@@ -70,7 +71,7 @@ function useSaved(message: string) {
   const queryClient = useQueryClient()
   return {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin', 'sla'] }); toast.success(message) },
-    onError: (e: Error) => toast.error('Could not save', e.message),
+    onError: (e: Error) => toast.error('Could not save', errorText(e)),
   }
 }
 
@@ -89,7 +90,7 @@ function PolicyCard({ policy }: { policy: SlaPolicy }) {
         <PriorityBadge priority={policy.priority} />
         <Button size="sm" disabled={!dirty} loading={save.isPending} onClick={() => save.mutate()}>Save</Button>
       </div>
-      <div className="mt-4 grid grid-cols-3 gap-3">
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <NumberField label="Respond within" suffix="min" value={response} onChange={setResponse} hint={formatMinutes(response)} />
         <NumberField label="Resolve within" suffix="min" value={resolution} onChange={setResolution} hint={formatMinutes(resolution)} />
         <NumberField label="Warn at" suffix="%" value={warning} onChange={setWarning} max={99} hint="of the time used" />

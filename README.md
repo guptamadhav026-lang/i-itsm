@@ -14,12 +14,13 @@ in `model/state`.
 
 ## Features
 
-- Three roles with their own screens: employee, technician, administrator. Login with JWT tokens, passwords stored with BCrypt.
+- Three roles with their own screens: employee, technician, administrator. Login with JWT tokens, passwords stored with BCrypt. Everyone can change their own password; administrators create, edit and deactivate accounts and set a new password for someone who forgot theirs.
 - Priority from impact, urgency, business criticality of the service and number of affected users. Two priority strategies (weighted score, ITIL matrix) that the admin can switch at runtime.
-- Four assignment strategies: smart (skills, experience, past work on the service, workload), skill based, least busy (load based), round robin.
-- SLA response and resolution deadlines per priority, with optional targets for single services (in the demo, payments must be fixed faster and the HR portal may take longer). A warning before the deadline, breach detection, and escalation of unacknowledged P1/P2 incidents (team lead, then system administrator, then IT manager).
+- Four assignment strategies: smart (skills, experience, past work on the service, workload), skill based, least busy (load based), round robin. The chosen strategies are saved, so they survive a restart. When nobody is free, the administrators are told why and the incident is offered again every minute.
+- Corrections: the reporter can fix the title and description until a technician acknowledges the incident; the technician or an administrator can also re-classify it or move it to another service (the priority and SLA targets are worked out again).
+- SLA response and resolution deadlines per priority, with optional targets for single services (in the demo, payments must be fixed faster and the HR portal may take longer). A warning before the response and the resolution deadline, breach detection, and escalation of unacknowledged P1/P2 incidents (team lead, then system administrator, then IT manager). If the priority goes up, the new targets count from that moment; while a resolved incident waits for the reporter, the resolution clock is paused.
 - Notifications in the app and by e-mail (e-mail is simulated: it is written to the log and shown on the Notifications page).
-- Full audit log of every change, search with 10 filters, management reports (including real average response and resolution times and late incidents per priority) and CSV export.
+- Full audit log of every incident change and of every change administrators make (users, services, categories, SLA targets, strategies), search with 11 filters, management reports (including real average response and resolution times and late incidents per priority) and CSV export.
 - Duplicate detection, correlation of related incidents (possible major incident), automatic categorisation, SLA risk score, suggested resolutions from past incidents.
 - Optional Google Gemini categorisation: with an API key the category is chosen by Gemini; without one, or if Gemini cannot be reached, the keyword matcher is used.
 - Live updates: open pages refresh on their own when something changes (Server-Sent Events).
@@ -33,7 +34,7 @@ in `model/state`.
 | Frontend | React 19 with TypeScript, Vite, TanStack Query, React Router, Tailwind CSS, Recharts |
 | AI (optional) | Google Gemini API (`gemini-3.8-flash`), called with Spring's RestClient |
 | Tests | JUnit 5, Spring MockMvc, AssertJ; Vitest and Testing Library for the frontend |
-| Packaging | Docker and Docker Compose (app plus PostgreSQL); GitHub Actions runs all tests on every push |
+| Packaging | Docker and Docker Compose (app plus PostgreSQL); GitHub Actions runs all tests on every push to `main` and on every pull request |
 
 ## Running it
 
@@ -51,6 +52,9 @@ When the log shows `Started ItsmApplication`, open http://localhost:8080. The fi
 
 - The first start creates the database in `data/` and loads demo data. Delete `data/` to start over
   (do this before recording a demo, otherwise old incidents show as SLA breached).
+- Logins are signed with a random key each time the server starts, so everyone has to log in again after a
+  restart. To keep logins across restarts, set `ITSM_JWT_SECRET` to a long random text (at least 32 characters).
+- Times are shown in India time (`Asia/Kolkata`); set `ITSM_TIME_ZONE` to change it.
 - API documentation: http://localhost:8080/swagger-ui.html
 - Backend only: run `src/main/java/com/itsm/ItsmApplication.java` from the IDE.
 - Frontend development server: `cd frontend`, `npm install`, `npm run dev` (port 5173, needs Node.js 20+).
@@ -83,7 +87,8 @@ Services and categories shows whether Gemini is switched on. `GEMINI_MODEL` pick
 
 ## Demo accounts
 
-All demo accounts use the password `password123`.
+All demo accounts use the password `password123`. The login page lists them while the demo data is switched
+on (`itsm.seed.enabled=true`, the default).
 
 | Username | Name | Role |
 |---|---|---|
@@ -99,12 +104,12 @@ All demo accounts use the password `password123`.
 ## Tests
 
 ```bash
-mvnw.cmd test             # 42 backend tests
-cd frontend && npm test   # 20 frontend tests
+mvnw.cmd test             # 58 backend tests
+cd frontend && npm test   # 27 frontend tests
 ```
 
-The test cases are listed in [docs/TEST_CASES.md](docs/TEST_CASES.md), along with three workflows that were
-also checked by hand in a browser.
+The test cases are listed in [docs/TEST_CASES.md](docs/TEST_CASES.md), along with the workflows that were
+also run end to end in a browser.
 
 ## Code layout
 
@@ -141,3 +146,4 @@ frontend/src
 | ![Login](docs/screenshots/01-login.png) Login | ![Report form](docs/screenshots/03-report-form.png) Reporting an incident |
 | ![Technician](docs/screenshots/11-technician-dashboard-live.png) Technician queue | ![Incident](docs/screenshots/21-employee-question-live.png) Technician asks the reporter a question |
 | ![Recommend](docs/screenshots/36-admin-recommend.png) Ranked technicians for manual assignment | ![Reports](docs/screenshots/37-reports.png) Reports |
+| ![Edit](docs/screenshots/49-edit-incident.png) The reporter corrects an incident | ![Audit](docs/screenshots/51-audit-admin-changes.png) Administration changes in the audit log |

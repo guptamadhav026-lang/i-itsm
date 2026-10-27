@@ -12,6 +12,7 @@ import { ReportIncidentPage } from './pages/ReportIncidentPage'
 import { IncidentDetailPage } from './pages/IncidentDetailPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { NotFoundPage } from './pages/NotFoundPage'
+import { AccountPage } from './pages/AccountPage'
 
 // Admin-only screens (and the charts library they use) are downloaded only when an admin opens them,
 // so employees and technicians get a smaller, faster app.
@@ -34,6 +35,7 @@ export function App() {
         <Route path="incidents/new" element={<RequireRole roles={['EMPLOYEE', 'ADMIN']}><ReportIncidentPage /></RequireRole>} />
         <Route path="incidents/:id" element={<IncidentDetailPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="account" element={<AccountPage />} />
         <Route path="reports" element={<RequireRole roles={['ADMIN']}><ReportsPage /></RequireRole>} />
         <Route path="admin/users" element={<RequireRole roles={['ADMIN']}><UsersPage /></RequireRole>} />
         <Route path="admin/catalog" element={<RequireRole roles={['ADMIN']}><CatalogPage /></RequireRole>} />

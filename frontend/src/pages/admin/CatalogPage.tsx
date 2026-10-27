@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { adminApi, type CategoryBody, type ServiceBody } from '../../api/endpoints'
-import { ApiError } from '../../api/client'
+import { errorText } from '../../api/client'
 import type { Category, Service } from '../../api/types'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
@@ -114,7 +114,7 @@ function useSave<T>(fn: (body: T) => Promise<unknown>, success: string, onClose:
       toast.success(success)
       onClose()
     },
-    onError: (e) => toast.error('Could not save', e instanceof ApiError ? e.message : undefined),
+    onError: (e) => toast.error('Could not save', errorText(e)),
   })
 }
 

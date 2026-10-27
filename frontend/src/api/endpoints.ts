@@ -1,7 +1,8 @@
 import { api, query } from './client'
 import type {
   AuditRecord, Category, CategorySuggestion, CorrelationCluster, CountRow, IncidentDetail, IncidentSummary,
-  IntegrationStatus, Level, LoginResponse, Notification, Overview, Priority, ScoredTechnician, SearchCriteria, Service,
+  IntegrationStatus, Level, LoginOptions, LoginResponse, Notification, Overview, Priority, PriorityAssessment,
+  ScoredTechnician, SearchCriteria, Service,
   ServiceStatus, SimilarIncident, SlaByPriority, SlaPolicy, SlaRisk, Strategy, SuggestedResolution, TechnicianWorkload,
   User, Role,
 } from './types'
@@ -14,6 +15,9 @@ export const authApi = {
   register: (body: { username: string; password: string; fullName: string; email: string; department?: string }) =>
     api.post<User>('/api/auth/register', body),
   me: () => api.get<User>('/api/auth/me'),
+  options: () => api.get<LoginOptions>('/api/auth/options'),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    api.put<null>('/api/auth/password', { currentPassword, newPassword }),
 }
 
 export interface CreateIncidentBody {
@@ -26,6 +30,14 @@ export interface CreateIncidentBody {
   affectedUsers: number
 }
 
+/** Corrections to an incident; fields left out stay as they are. */
+export interface UpdateIncidentBody {
+  title?: string
+  description?: string
+  categoryId?: number
+  serviceId?: number
+}
+
 const inc = (id: number, action = '') => `/api/incidents/${id}${action}`
 
 export const incidentApi = {
@@ -34,6 +46,10 @@ export const incidentApi = {
   get: (id: number) => api.get<IncidentDetail>(inc(id)),
   audit: (id: number) => api.get<AuditRecord[]>(inc(id, '/audit')),
   create: (body: CreateIncidentBody) => api.post<IncidentDetail>('/api/incidents', body),
+  update: (id: number, body: UpdateIncidentBody) => api.put<IncidentDetail>(inc(id), body),
+  /** What the priority would be, using the strategy the administrator selected. Nothing is saved. */
+  previewPriority: (serviceId: number, impact: Level, urgency: Level, affectedUsers: number) =>
+    api.post<PriorityAssessment>('/api/incidents/priority-preview', { serviceId, impact, urgency, affectedUsers }),
 
   assign: (id: number, technicianId: number) => api.post<IncidentDetail>(inc(id, '/assign'), { technicianId }),
   autoAssign: (id: number) => api.post<IncidentDetail>(inc(id, '/auto-assign')),
@@ -62,7 +78,8 @@ export const incidentApi = {
 export const catalogApi = {
   services: () => api.get<Service[]>('/api/catalog/services'),
   categories: () => api.get<Category[]>('/api/catalog/categories'),
-  suggestCategory: (text: string) => api.post<CategorySuggestion | undefined>('/api/catalog/suggest-category', { text }),
+  /** null when no category's keywords match the text */
+  suggestCategory: (text: string) => api.post<CategorySuggestion | null>('/api/catalog/suggest-category', { text }),
   serviceStatus: () => api.get<ServiceStatus[]>('/api/catalog/service-status'),
   /** The SLA targets that apply to one service, P1 to P4 */
   serviceSla: (serviceId: number) => api.get<SlaPolicy[]>(`/api/catalog/services/${serviceId}/sla`),
@@ -86,6 +103,14 @@ export interface CreateUserBody {
   itManager?: boolean
 }
 
+/** Fields left out keep their value. department is for employees, itManager for administrators. */
+export interface UpdateUserBody {
+  fullName?: string
+  email?: string
+  department?: string
+  itManager?: boolean
+}
+
 export interface UpdateTechnicianBody {
   skills?: string[]
   experienceYears?: number
@@ -103,6 +128,8 @@ export const adminApi = {
   users: () => api.get<User[]>('/api/admin/users'),
   createUser: (body: CreateUserBody) => api.post<User>('/api/admin/users', body),
   setActive: (id: number, active: boolean) => api.put<User>(`/api/admin/users/${id}/active?active=${active}`),
+  updateUser: (id: number, body: UpdateUserBody) => api.put<User>(`/api/admin/users/${id}`, body),
+  resetPassword: (id: number, newPassword: string) => api.put<User>(`/api/admin/users/${id}/password`, { newPassword }),
   technicians: () => api.get<User[]>('/api/admin/technicians'),
   updateTechnician: (id: number, body: UpdateTechnicianBody) => api.put<User>(`/api/admin/technicians/${id}`, body),
 

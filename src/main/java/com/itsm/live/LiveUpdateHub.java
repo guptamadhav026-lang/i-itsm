@@ -3,6 +3,8 @@ package com.itsm.live;
 import com.itsm.model.Role;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.event.ContextClosedEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -31,9 +33,14 @@ public class LiveUpdateHub {
     // CopyOnWriteArrayList: safe when one thread sends while another thread adds or removes a connection.
     private final List<Subscriber> subscribers = new CopyOnWriteArrayList<>();
     private final Set<String> blocked = ConcurrentHashMap.newKeySet();
+    private volatile boolean closing;
 
     public SseEmitter subscribe(String username, Role role) {
         SseEmitter emitter = new SseEmitter(NO_TIMEOUT);
+        if (closing) {
+            emitter.complete();
+            return emitter;
+        }
         Subscriber subscriber = new Subscriber(username, role, emitter);
         subscribers.add(subscriber);
         emitter.onCompletion(() -> subscribers.remove(subscriber));
@@ -84,6 +91,19 @@ public class LiveUpdateHub {
 
     public boolean isBlocked(String username) {
         return blocked.contains(username);
+    }
+
+    /**
+     * The server is stopping (Ctrl+C): the open streams are ended first. Otherwise the graceful shutdown waits
+     * 30 seconds for these never-ending requests before it gives up. The browsers reconnect once the server is back.
+     */
+    @EventListener(ContextClosedEvent.class)
+    public void closeAll() {
+        closing = true;
+        for (Subscriber subscriber : subscribers) {
+            subscribers.remove(subscriber);
+            subscriber.emitter().complete();
+        }
     }
 
     public int connectionCount() {

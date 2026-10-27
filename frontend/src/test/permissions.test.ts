@@ -37,11 +37,24 @@ describe('availableActions', () => {
 
   it('gives the technician resolve, request-info and note actions while in progress', () => {
     expect(availableActions(incident('IN_PROGRESS'), ananya)).toEqual(
-      expect.arrayContaining(['resolve', 'requestInfo', 'addNote', 'reassess', 'comment']))
+      expect.arrayContaining(['resolve', 'requestInfo', 'addNote', 'reassess', 'comment', 'edit']))
+  })
+
+  it('lets the technician ask the reporter a question before starting work', () => {
+    const actions = availableActions(incident('ASSIGNED'), ananya)
+    expect(actions).toEqual(expect.arrayContaining(['acknowledge', 'requestInfo', 'addNote']))
+    expect(actions).not.toContain('resolve')
+  })
+
+  it('lets the reporter edit only until a technician acknowledges it', () => {
+    expect(availableActions(incident('ASSIGNED'), rohan)).toContain('edit')
+    expect(availableActions(incident('ACKNOWLEDGED'), rohan)).not.toContain('edit')
+    expect(availableActions(incident('RESOLVED'), ananya)).not.toContain('edit')
   })
 
   it('lets only the reporter (or an admin) verify or reopen a resolved incident', () => {
-    expect(availableActions(incident('RESOLVED'), rohan)).toEqual(expect.arrayContaining(['verify', 'reopen', 'feedback']))
+    expect(availableActions(incident('RESOLVED'), rohan)).toEqual(expect.arrayContaining(['verify', 'reopen']))
+    expect(availableActions(incident('RESOLVED'), rohan)).not.toContain('feedback')
     expect(availableActions(incident('RESOLVED'), ananya)).not.toContain('verify')
     expect(availableActions(incident('RESOLVED'), admin)).toContain('verify')
   })
@@ -49,9 +62,11 @@ describe('availableActions', () => {
   it('shows "provide info" to the reporter only when the technician asked a question', () => {
     expect(availableActions(incident('IN_PROGRESS'), rohan)).not.toContain('provideInfo')
     expect(availableActions(incident('IN_PROGRESS', { awaitingReporterInfo: true }), rohan)).toContain('provideInfo')
+    expect(availableActions(incident('IN_PROGRESS', { awaitingReporterInfo: true }), admin)).not.toContain('provideInfo')
   })
 
-  it('offers feedback once, and never comments on a closed incident', () => {
+  it('offers feedback once the fix is confirmed, and never comments on a closed incident', () => {
+    expect(availableActions(incident('VERIFIED'), rohan)).toEqual(expect.arrayContaining(['close', 'feedback']))
     expect(availableActions(incident('CLOSED'), rohan)).toEqual(['feedback'])
     expect(availableActions(incident('CLOSED', { feedbackRating: 5 }), rohan)).toEqual([])
   })

@@ -2,15 +2,15 @@ import { useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
-import { incidentApi } from '../api/endpoints'
-import { ApiError } from '../api/client'
+import { catalogApi, incidentApi, type UpdateIncidentBody } from '../api/endpoints'
+import { ApiError, errorText } from '../api/client'
 import { LEVELS, type IncidentDetail, type Level } from '../api/types'
 import { useUser } from '../auth/AuthContext'
 import { availableActions, type IncidentAction } from '../lib/permissions'
 import { categoryLabel, formatDateTime, LEVEL_LABEL, timeAgo } from '../lib/format'
 import { Button } from '../components/ui/Button'
 import { Card, CardBody, CardHeader } from '../components/ui/Card'
-import { Field, Input, Segmented, Textarea } from '../components/ui/Field'
+import { Field, Input, Segmented, Select, Textarea } from '../components/ui/Field'
 import { Modal } from '../components/ui/Modal'
 import { Avatar, EmptyState, ErrorState, PageLoader, Tabs } from '../components/ui/misc'
 import { useToast } from '../components/ui/Toast'
@@ -21,7 +21,9 @@ import { AuditTimeline, NotesTimeline } from '../components/incident/Timelines'
 import { RecommendedTechnicians, SimilarIncidentsPanel } from '../components/incident/SmartPanels'
 import { FeedbackForm, Stars } from '../components/incident/Feedback'
 
-type ModalKind = 'resolve' | 'requestInfo' | 'reopen' | 'reassess' | 'assign' | null
+type ModalKind = 'resolve' | 'requestInfo' | 'reopen' | 'reassess' | 'assign' | 'edit' | null
+/** A fixed message, or one worked out from the server's answer (e.g. whether the deadline was met) */
+type SuccessText = string | ((updated: IncidentDetail) => string)
 type TabKey = 'activity' | 'history' | 'assist'
 
 export function IncidentDetailPage() {
@@ -32,6 +34,7 @@ export function IncidentDetailPage() {
   const [modal, setModal] = useState<ModalKind>(null)
   const [tab, setTab] = useState<TabKey>('activity')
   const [resolutionDraft, setResolutionDraft] = useState('')
+  const [assigningId, setAssigningId] = useState<number | null>(null)
 
   const { data: incident, isLoading, error, refetch } = useQuery({
     queryKey: ['incident', id],
@@ -42,19 +45,25 @@ export function IncidentDetailPage() {
 
   /** Runs one lifecycle action, updates the page with the server's answer and shows a toast. */
   const action = useMutation({
-    mutationFn: async ({ run }: { run: () => Promise<IncidentDetail>; success: string }) => run(),
+    mutationFn: async ({ run }: { run: () => Promise<IncidentDetail>; success: SuccessText }) => run(),
     onSuccess: (updated, vars) => {
       queryClient.setQueryData(['incident', id], updated)
       queryClient.invalidateQueries({ queryKey: ['incidents'] })
       queryClient.invalidateQueries({ queryKey: ['audit', id] })
       queryClient.invalidateQueries({ queryKey: ['incident', id, 'recommended'] })
       setModal(null)
-      toast.success(vars.success)
+      setResolutionDraft('')
+      toast.success(typeof vars.success === 'function' ? vars.success(updated) : vars.success)
     },
-    onError: (e) => toast.error('Action failed', (e as Error).message),
+    // the dialog stays open and the typed text stays, so nothing is lost when the server refuses
+    onError: (e) => toast.error('That did not work', errorText(e)),
+    onSettled: () => setAssigningId(null),
   })
-  const run = (success: string, fn: () => Promise<IncidentDetail>) => action.mutate({ run: fn, success })
+  /** onDone runs only when the server accepted the change (used to clear a text box) */
+  const run = (success: SuccessText, fn: () => Promise<IncidentDetail>, onDone?: () => void) =>
+    action.mutate({ run: fn, success }, { onSuccess: () => onDone?.() })
   const busy = action.isPending
+  const closeModal = () => { setModal(null); setResolutionDraft('') }
 
   if (isLoading) return <PageLoader />
   if (error instanceof ApiError && (error.status === 403 || error.status === 404)) {
@@ -64,7 +73,7 @@ export function IncidentDetailPage() {
         <EmptyState
           title={error.status === 403 ? `You can't open ${reference}` : `There is no incident ${reference}`}
           message={error.status === 403
-            ? 'Employees only see the incidents they reported, and technicians the ones assigned to them.'
+            ? 'You can only open the incidents you reported yourself. Ask the IT service desk if you need this one.'
             : 'It may have been typed wrong. Search the list to find the one you need.'}
           action={<Link to="/incidents"><Button variant="secondary">Go to incidents</Button></Link>}
         />
@@ -103,7 +112,9 @@ export function IncidentDetailPage() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2 lg:justify-end">
-          {can('acknowledge') && <Button loading={busy} onClick={() => run('Acknowledged: the response SLA is met', () => incidentApi.acknowledge(id))}>Acknowledge</Button>}
+          {can('acknowledge') && <Button loading={busy} onClick={() => run(
+            (u) => u.responseBreached ? 'Acknowledged, but after the response deadline' : 'Acknowledged in time: the response target is met',
+            () => incidentApi.acknowledge(id))}>Acknowledge</Button>}
           {can('start') && <Button loading={busy} onClick={() => run('Investigation started', () => incidentApi.start(id))}>Start investigation</Button>}
           {can('requestInfo') && <Button variant="secondary" onClick={() => setModal('requestInfo')}>Ask reporter</Button>}
           {can('resolve') && <Button variant="success" onClick={() => setModal('resolve')}>Resolve</Button>}
@@ -112,12 +123,13 @@ export function IncidentDetailPage() {
           {can('close') && <Button loading={busy} onClick={() => run('Incident closed', () => incidentApi.close(id))}>Close incident</Button>}
           {can('assign') && <Button variant="secondary" onClick={() => setModal('assign')}>{incident.assignedTechnician ? 'Reassign' : 'Assign'}</Button>}
           {can('reassess') && <Button variant="ghost" onClick={() => setModal('reassess')}>Re-assess</Button>}
+          {can('edit') && <Button variant="ghost" onClick={() => setModal('edit')}>Edit</Button>}
         </div>
       </div>
 
       {incident.awaitingReporterInfo && can('provideInfo') && (
         <InfoRequestBanner incident={incident} loading={busy}
-          onSend={(text) => run('Reply sent to the technician', () => incidentApi.provideInfo(id, text))} />
+          onSend={(text, done) => run('Reply sent to the technician', () => incidentApi.provideInfo(id, text), done)} />
       )}
       {incident.potentialDuplicateOf && (
         <div className="mt-4 rounded-md border border-line border-l-4 border-l-slate-400 bg-surface px-4 py-3 text-sm text-fg">
@@ -177,11 +189,11 @@ export function IncidentDetailPage() {
                       canAsk={can('requestInfo')}
                       canAnswer={can('provideInfo')}
                       loading={busy}
-                      onSend={(kind, text) => {
-                        if (kind === 'note') run('Note added', () => incidentApi.addNote(id, text))
-                        else if (kind === 'ask') run('Question sent to the reporter', () => incidentApi.requestInfo(id, text))
-                        else if (kind === 'answer') run('Reply sent', () => incidentApi.provideInfo(id, text))
-                        else run('Comment added', () => incidentApi.comment(id, text))
+                      onSend={(kind, text, done) => {
+                        if (kind === 'note') run('Note added', () => incidentApi.addNote(id, text), done)
+                        else if (kind === 'ask') run('Question sent to the reporter', () => incidentApi.requestInfo(id, text), done)
+                        else if (kind === 'answer') run('Reply sent', () => incidentApi.provideInfo(id, text), done)
+                        else run('Comment added', () => incidentApi.comment(id, text), done)
                       }}
                     />
                   )}
@@ -205,14 +217,18 @@ export function IncidentDetailPage() {
               ? incident.serviceSlaPolicy ? `${incident.priority} targets for ${incident.service.name}` : `Default ${incident.priority} targets`
               : undefined} />
             <CardBody className="space-y-4">
-              <SlaCountdown label="Response (acknowledge)" start={incident.createdAt} deadline={incident.responseDeadline}
-                stoppedAt={incident.acknowledgedAt} breached={incident.responseBreached} />
-              <SlaCountdown label="Resolution" start={incident.createdAt} deadline={incident.resolutionDeadline}
-                stoppedAt={incident.resolvedAt} breached={incident.resolutionBreached} />
+              <SlaCountdown label="Response (acknowledge)" start={incident.slaStartedAt ?? incident.createdAt} deadline={incident.responseDeadline}
+                stoppedAt={incident.acknowledgedAt} breached={incident.responseBreached} warningPercent={incident.slaWarningPercent} />
+              <SlaCountdown label="Resolution" start={incident.slaStartedAt ?? incident.createdAt} deadline={incident.resolutionDeadline}
+                stoppedAt={incident.resolvedAt} breached={incident.resolutionBreached} warningPercent={incident.slaWarningPercent} />
               <dl className="grid grid-cols-2 gap-x-4 gap-y-1 border-t border-line pt-3 text-xs">
                 <dt className="text-muted">Respond by</dt><dd className="text-right text-fg">{formatDateTime(incident.responseDeadline)}</dd>
                 <dt className="text-muted">Resolve by</dt><dd className="text-right text-fg">{formatDateTime(incident.resolutionDeadline)}</dd>
               </dl>
+              {incident.slaStartedAt && incident.slaStartedAt !== incident.createdAt && (
+                <p className="text-xs text-muted">The targets were set again at {formatDateTime(incident.slaStartedAt)}, after the priority or service changed.</p>
+              )}
+
             </CardBody>
           </Card>
 
@@ -261,7 +277,7 @@ export function IncidentDetailPage() {
                     {incident.feedbackComment && <p className="mt-2 text-sm text-muted">"{incident.feedbackComment}"</p>}
                   </div>
                 ) : (
-                  <FeedbackForm loading={busy} onSubmit={(rating, comment) => run('Feedback saved', () => incidentApi.feedback(id, rating, comment))} />
+                  <FeedbackForm loading={busy} onSubmit={(rating, comment) => run('Thank you, your feedback was saved', () => incidentApi.feedback(id, rating, comment))} />
                 )}
               </CardBody>
             </Card>
@@ -269,37 +285,57 @@ export function IncidentDetailPage() {
         </div>
       </div>
 
-      <TextModal
-        open={modal === 'resolve'} onClose={() => setModal(null)} title="Resolve incident"
-        description="Describe what you did. The reporter will be asked to confirm the fix." label="Resolution" confirm="Mark as resolved"
-        initial={resolutionDraft} loading={busy}
-        onConfirm={(text) => run('Resolved: the reporter has been notified', () => incidentApi.resolve(id, text))}
-      />
-      <TextModal
-        open={modal === 'requestInfo'} onClose={() => setModal(null)} title="Ask the reporter"
-        description="The reporter gets a notification and can answer on this page." label="Your question" confirm="Send question"
-        loading={busy} onConfirm={(text) => run('Question sent to the reporter', () => incidentApi.requestInfo(id, text))}
-      />
-      <TextModal
-        open={modal === 'reopen'} onClose={() => setModal(null)} title="Reopen incident"
-        description="Tell the technician what is still not working. The incident goes back to In progress." label="What's still wrong?" confirm="Reopen"
-        loading={busy} onConfirm={(text) => run('Reopened: the technician has been notified', () => incidentApi.reopen(id, text))}
-      />
-      <ReassessModal
-        open={modal === 'reassess'} onClose={() => setModal(null)} incident={incident} loading={busy}
-        onConfirm={(impact, urgency, users) => run('Priority recalculated', () => incidentApi.reassess(id, impact, urgency, users))}
-      />
-      <Modal open={modal === 'assign'} onClose={() => setModal(null)} size="lg" title="Assign a technician"
+      {/* each dialog is mounted only while it is open, so it starts empty (or with the suggested text) every time */}
+      {modal === 'resolve' && (
+        <TextModal onClose={closeModal} title="Resolve incident" maxLength={4000}
+          description="Describe what you did. The reporter will be asked to confirm the fix." label="Resolution" confirm="Mark as resolved"
+          initial={resolutionDraft} loading={busy}
+          onConfirm={(text) => run('Resolved: the reporter has been notified', () => incidentApi.resolve(id, text))}
+        />
+      )}
+      {modal === 'requestInfo' && (
+        <TextModal onClose={closeModal} title="Ask the reporter" maxLength={4000}
+          description="The reporter gets a notification and can answer on this page." label="Your question" confirm="Send question"
+          loading={busy} onConfirm={(text) => run('Question sent to the reporter', () => incidentApi.requestInfo(id, text))}
+        />
+      )}
+      {modal === 'reopen' && (
+        <TextModal onClose={closeModal} title="Reopen incident" maxLength={2000}
+          description="Tell the technician what is still not working. The incident goes back to In progress, and the resolution clock carries on from where it stopped."
+          label="What's still wrong?" confirm="Reopen"
+          loading={busy} onConfirm={(text) => run('Reopened: the technician has been notified', () => incidentApi.reopen(id, text))}
+        />
+      )}
+      {modal === 'reassess' && (
+        <ReassessModal onClose={closeModal} incident={incident} loading={busy}
+          onConfirm={(impact, urgency, users) => run(
+            (u) => u.priority === incident.priority ? `Priority stays ${u.priority}` : `Priority changed to ${u.priority}: new SLA targets apply from now`,
+            () => incidentApi.reassess(id, impact, urgency, users))}
+        />
+      )}
+      {modal === 'edit' && (
+        <EditModal onClose={closeModal} incident={incident} canReclassify={isWorker} loading={busy}
+          onConfirm={(body) => run(
+            (u) => u.priority !== incident.priority ? `Saved. The priority is now ${u.priority}` : 'Changes saved',
+            () => incidentApi.update(id, body))}
+        />
+      )}
+      <Modal open={modal === 'assign'} onClose={closeModal} size="lg" title="Assign a technician"
         description="Ranked by the SMART strategy: skills, experience, past work on this service and current workload.">
         <RecommendedTechnicians
           incidentId={id}
           currentId={incident.assignedTechnician?.id ?? null}
-          assigning={busy ? -1 : null}
-          onAssign={(t) => run(`Assigned to ${t.fullName}`, () => incidentApi.assign(id, t.technicianId))}
+          assigning={assigningId}
+          disabled={busy}
+          onAssign={(t) => {
+            setAssigningId(t.technicianId)
+            run(`Assigned to ${t.fullName}`, () => incidentApi.assign(id, t.technicianId))
+          }}
         />
         <div className="mt-4 flex justify-end border-t border-line pt-4">
-          <Button variant="secondary" loading={busy}
-            onClick={() => run('Assigned automatically', () => incidentApi.autoAssign(id))}>
+          <Button variant="secondary" loading={busy && assigningId === null} disabled={busy}
+            onClick={() => run((u) => u.assignedTechnician ? `Assigned to ${u.assignedTechnician.fullName}` : 'No technician is free right now',
+              () => incidentApi.autoAssign(id))}>
             Use active assignment strategy
           </Button>
         </div>
@@ -330,7 +366,9 @@ function Detail({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-function InfoRequestBanner({ incident, onSend, loading }: { incident: IncidentDetail; onSend: (t: string) => void; loading: boolean }) {
+function InfoRequestBanner({ incident, onSend, loading }: {
+  incident: IncidentDetail; onSend: (text: string, done: () => void) => void; loading: boolean
+}) {
   const [text, setText] = useState('')
   const question = [...incident.notes].reverse().find((n) => n.type === 'INFO_REQUEST')
   return (
@@ -340,8 +378,9 @@ function InfoRequestBanner({ incident, onSend, loading }: { incident: IncidentDe
       </p>
       {question && <p className="mt-1 text-sm text-amber-900/80 dark:text-amber-200/80">"{question.text}"</p>}
       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-        <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Your answer" className="bg-surface" />
-        <Button disabled={!text.trim()} loading={loading} onClick={() => { onSend(text.trim()); setText('') }}>Send reply</Button>
+        <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Your answer" aria-label="Your answer"
+          maxLength={4000} className="bg-surface" />
+        <Button disabled={!text.trim()} loading={loading} onClick={() => onSend(text.trim(), () => setText(''))}>Send reply</Button>
       </div>
     </div>
   )
@@ -351,7 +390,8 @@ type ComposerKind = 'comment' | 'note' | 'ask' | 'answer'
 
 function Composer({ canInvestigate, canAsk, canAnswer, onSend, loading }: {
   canInvestigate: boolean; canAsk: boolean; canAnswer: boolean; loading: boolean
-  onSend: (kind: ComposerKind, text: string) => void
+  /** done() clears the box, and is called only once the server has saved the text */
+  onSend: (kind: ComposerKind, text: string, done: () => void) => void
 }) {
   const options: { value: ComposerKind; label: string }[] = [
     ...(canInvestigate ? [{ value: 'note' as const, label: 'Investigation note' }] : []),
@@ -365,9 +405,10 @@ function Composer({ canInvestigate, canAsk, canAnswer, onSend, loading }: {
   return (
     <form
       className="rounded border border-line-strong p-3"
-      onSubmit={(e) => { e.preventDefault(); if (text.trim()) { onSend(selected, text.trim()); setText('') } }}
+      onSubmit={(e) => { e.preventDefault(); if (text.trim() && !loading) onSend(selected, text.trim(), () => setText('')) }}
     >
-      <Textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Write an update" rows={3} className="border-0 bg-transparent focus:ring-0" />
+      <Textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Write an update" aria-label="Write an update"
+        rows={3} maxLength={4000} className="border-0 bg-transparent focus:ring-0" />
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
         {options.length > 1
           ? <select value={selected} onChange={(e) => setKind(e.target.value as ComposerKind)} aria-label="Type of update"
@@ -381,36 +422,34 @@ function Composer({ canInvestigate, canAsk, canAnswer, onSend, loading }: {
   )
 }
 
-function TextModal({ open, onClose, title, description, label, confirm, onConfirm, loading, initial = '' }: {
-  open: boolean; onClose: () => void; title: string; description: string; label: string; confirm: string
-  onConfirm: (text: string) => void; loading: boolean; initial?: string
+function TextModal({ onClose, title, description, label, confirm, onConfirm, loading, maxLength, initial = '' }: {
+  onClose: () => void; title: string; description: string; label: string; confirm: string
+  onConfirm: (text: string) => void; loading: boolean; maxLength: number; initial?: string
 }) {
   const [text, setText] = useState(initial)
-  const [lastInitial, setLastInitial] = useState(initial)
-  if (initial !== lastInitial) { setLastInitial(initial); setText(initial) }
   return (
-    <Modal open={open} onClose={onClose} title={title} description={description}
+    <Modal open onClose={onClose} title={title} description={description}
       footer={<>
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
         <Button loading={loading} disabled={!text.trim()} onClick={() => onConfirm(text.trim())}>{confirm}</Button>
       </>}>
-      <Field label={label}>
-        <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} />
+      <Field label={label} hint={text.length > maxLength * 0.9 ? `${text.length} of ${maxLength} characters` : undefined}>
+        <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} maxLength={maxLength} />
       </Field>
     </Modal>
   )
 }
 
-function ReassessModal({ open, onClose, incident, onConfirm, loading }: {
-  open: boolean; onClose: () => void; incident: IncidentDetail; loading: boolean
+function ReassessModal({ onClose, incident, onConfirm, loading }: {
+  onClose: () => void; incident: IncidentDetail; loading: boolean
   onConfirm: (impact: Level, urgency: Level, users: number) => void
 }) {
   const [impact, setImpact] = useState<Level>(incident.impact)
   const [urgency, setUrgency] = useState<Level>(incident.urgency)
   const [users, setUsers] = useState(incident.affectedUsers)
   return (
-    <Modal open={open} onClose={onClose} title="Re-assess impact and urgency"
-      description="Priority and SLA deadlines are recalculated by the active priority strategy."
+    <Modal open onClose={onClose} title="Re-assess impact and urgency"
+      description="The active priority strategy works out the priority again. If it changes, the new SLA targets count from now."
       footer={<>
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
         <Button loading={loading} onClick={() => onConfirm(impact, urgency, users)}>Recalculate</Button>
@@ -418,7 +457,64 @@ function ReassessModal({ open, onClose, incident, onConfirm, loading }: {
       <div className="space-y-4">
         <Field label="Impact"><Segmented name="Impact" value={impact} onChange={setImpact} options={LEVELS.map((l) => ({ value: l, label: LEVEL_LABEL[l] }))} /></Field>
         <Field label="Urgency"><Segmented name="Urgency" value={urgency} onChange={setUrgency} options={LEVELS.map((l) => ({ value: l, label: LEVEL_LABEL[l] }))} /></Field>
-        <Field label="Affected users"><div className="w-36"><Input type="number" min={1} value={users} onChange={(e) => setUsers(Math.max(1, Number(e.target.value) || 1))} /></div></Field>
+        <Field label="Affected users"><Input type="number" min={1} max={1_000_000} className="w-36" value={users}
+          onChange={(e) => setUsers(Math.min(1_000_000, Math.max(1, Number(e.target.value) || 1)))} /></Field>
+      </div>
+    </Modal>
+  )
+}
+
+function EditModal({ onClose, incident, canReclassify, onConfirm, loading }: {
+  onClose: () => void; incident: IncidentDetail; canReclassify: boolean; loading: boolean
+  onConfirm: (body: UpdateIncidentBody) => void
+}) {
+  const [title, setTitle] = useState(incident.title)
+  const [description, setDescription] = useState(incident.description)
+  const [categoryId, setCategoryId] = useState(incident.category?.id ?? 0)
+  const [serviceId, setServiceId] = useState(incident.service.id)
+  const categories = useQuery({ queryKey: ['catalog', 'categories'], queryFn: catalogApi.categories, enabled: canReclassify })
+  const services = useQuery({ queryKey: ['catalog', 'services'], queryFn: catalogApi.services, enabled: canReclassify })
+
+  // only what changed is sent, so the history says exactly what was corrected
+  const body: UpdateIncidentBody = {}
+  if (title.trim() !== incident.title) body.title = title.trim()
+  if (description.trim() !== incident.description) body.description = description.trim()
+  if (canReclassify && categoryId && categoryId !== incident.category?.id) body.categoryId = categoryId
+  if (canReclassify && serviceId !== incident.service.id) body.serviceId = serviceId
+  const changed = Object.keys(body).length > 0
+  const valid = title.trim().length >= 5 && description.trim().length > 0
+
+  return (
+    <Modal open onClose={onClose} size="lg" title={`Edit ${incident.reference}`}
+      description={canReclassify
+        ? 'Correct the details, or move it to the right category or service. Everyone involved is told, and the change is kept in the history.'
+        : 'You can correct your report until a technician starts on it. After that, add a comment instead.'}
+      footer={<>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button loading={loading} disabled={!changed || !valid} onClick={() => onConfirm(body)}>Save changes</Button>
+      </>}>
+      <div className="space-y-4">
+        <Field label="Title" required error={title.trim().length < 5 ? 'At least 5 characters' : undefined}>
+          <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={150} />
+        </Field>
+        <Field label="Description" required>
+          <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={6} maxLength={4000} />
+        </Field>
+        {canReclassify && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Category" hint="Re-classifying can change who the right technician is.">
+              <Select value={categoryId} onChange={(e) => setCategoryId(Number(e.target.value))}>
+                {!incident.category && <option value={0}>Not classified</option>}
+                {(categories.data ?? []).map((c) => <option key={c.id} value={c.id}>{categoryLabel(c.name)}</option>)}
+              </Select>
+            </Field>
+            <Field label="Service" hint="A different service can change the priority and the SLA targets.">
+              <Select value={serviceId} onChange={(e) => setServiceId(Number(e.target.value))}>
+                {(services.data ?? []).map((sv) => <option key={sv.id} value={sv.id}>{sv.name}</option>)}
+              </Select>
+            </Field>
+          </div>
+        )}
       </div>
     </Modal>
   )

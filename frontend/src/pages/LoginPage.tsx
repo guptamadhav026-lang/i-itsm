@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
+import { useQuery } from '@tanstack/react-query'
+import { authApi } from '../api/endpoints'
 import { useAuth } from '../auth/AuthContext'
 import { Button } from '../components/ui/Button'
 import { Field, Input } from '../components/ui/Field'
@@ -8,6 +10,7 @@ import { Avatar } from '../components/ui/misc'
 import { AuthLayout } from '../layout/AuthLayout'
 
 // Accounts created by DataSeeder on an empty database. All use the same password.
+// They are listed only while the server says the demo data is switched on (itsm.seed.enabled).
 const DEMO_PASSWORD = 'password123'
 const demoAccounts = [
   { username: 'rohan', name: 'Rohan Mehta', group: 'employee', detail: 'Finance' },
@@ -29,6 +32,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  const options = useQuery({ queryKey: ['login-options'], queryFn: authApi.options, staleTime: Infinity, retry: false })
 
   const signIn = async (u: string, p: string) => {
     setError(null)
@@ -76,7 +80,7 @@ export function LoginPage() {
         New employee? <Link to="/register" className="font-medium text-brand hover:underline">Create an account</Link>
       </p>
 
-      <div className="mt-10">
+      {options.data?.demoAccounts && <div className="mt-10">
         <div className="flex items-baseline justify-between gap-3 border-b border-line pb-2">
           <h2 className="text-sm font-semibold text-fg">Demo accounts</h2>
           <p className="text-xs text-muted">password <code className="font-mono text-fg">{DEMO_PASSWORD}</code></p>
@@ -107,7 +111,7 @@ export function LoginPage() {
             </div>
           ))}
         </div>
-      </div>
+      </div>}
     </AuthLayout>
   )
 }

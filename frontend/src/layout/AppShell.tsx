@@ -83,11 +83,14 @@ export function AppShell() {
       </nav>
 
       <div className="flex items-center gap-2.5 border-t border-side-line px-3 py-3">
-        <Avatar name={user.fullName} />
-        <div className="min-w-0 flex-1 leading-tight">
-          <p className="truncate text-sm font-medium">{user.fullName}</p>
-          <p className="truncate text-xs text-side-muted">{roleLabel[user.role]}</p>
-        </div>
+        <NavLink to="/account" onClick={close} title="My account: details and password"
+          className="-m-1 flex min-w-0 flex-1 items-center gap-2.5 rounded-md p-1 hover:bg-side-2">
+          <Avatar name={user.fullName} />
+          <span className="min-w-0 flex-1 leading-tight">
+            <span className="block truncate text-sm font-medium">{user.fullName}</span>
+            <span className="block truncate text-xs text-side-muted">{roleLabel[user.role]} · My account</span>
+          </span>
+        </NavLink>
         <button onClick={logout} title="Log out" aria-label="Log out"
           className="rounded-md p-1.5 text-side-muted hover:bg-side-2 hover:text-side-fg cursor-pointer">
           <LogOut className="size-4" />
