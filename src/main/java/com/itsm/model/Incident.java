@@ -4,6 +4,7 @@ import com.itsm.exception.InvalidInputException;
 import com.itsm.model.state.IncidentState;
 import com.itsm.model.state.IncidentStateFactory;
 import jakarta.persistence.*;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -83,6 +84,8 @@ public class Incident {
     private Instant responseDeadline;
     private Instant resolutionDeadline;
 
+    /** Added after the first release; the default lets an existing database add the column to its old rows. */
+    @ColumnDefault("false")
     private boolean responseWarningSent;
     private boolean slaWarningSent;
     private boolean responseBreached;
